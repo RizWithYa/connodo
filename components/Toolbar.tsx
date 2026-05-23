@@ -12,6 +12,10 @@ interface ToolbarProps {
   onExportPng?: () => void;
   onExportPdf?: () => void;
   onExportJson?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export default function Toolbar({
@@ -24,6 +28,10 @@ export default function Toolbar({
   onExportPng,
   onExportPdf,
   onExportJson,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
 }: ToolbarProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -51,6 +59,26 @@ export default function Toolbar({
           >
             <span className="text-base leading-none">⌫</span>
             Delete
+          </button>
+
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Undo (Ctrl+Z)"
+          >
+            <span className="text-base leading-none">↩</span>
+            Undo
+          </button>
+
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Redo (Ctrl+Y)"
+          >
+            <span className="text-base leading-none">↪</span>
+            Redo
           </button>
 
           <div className="w-px h-5 bg-slate-200 mx-1" />

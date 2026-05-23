@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
+  Handle,
+  Position,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
@@ -41,10 +43,20 @@ import type { AccessRole } from '@/lib/tokenUtils';
 export interface MindMapNodeData extends Record<string, unknown> {
   label: string;
   color?: string;
+  _autoEdit?: boolean;
 }
 
 export type MindMapNode = Node<MindMapNodeData>;
 export type MindMapEdge = Edge;
+
+type Snapshot = { nodes: MindMapNode[]; edges: MindMapEdge[] };
+
+// ---------------------------------------------------------------------------
+// Context — quick-add handler passed from CanvasInner to node components
+// ---------------------------------------------------------------------------
+
+const QuickAddContext = createContext<((sourceId: string) => void) | null>(null);
+const UndoRedoContext = createContext<(() => void) | null>(null);
 
 // ---------------------------------------------------------------------------
 // Custom node — editable (owner / editor)
@@ -60,10 +72,26 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
   const { id, data, selected } = props;
   const [editing, setEditing] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const { setNodes } = useReactFlow<MindMapNode, MindMapEdge>();
+  const { setNodes, setEdges } = useReactFlow<MindMapNode, MindMapEdge>();
+  const onQuickAdd = useContext(QuickAddContext);
+  const pushSnapshot = useContext(UndoRedoContext);
 
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
-  const showSwatches = hovered || selected;
+  const showMiniToolbar = selected && !editing;
+
+  // Auto-enter edit mode for nodes created via quick-add
+  useEffect(() => {
+    if (data._autoEdit) {
+      setEditing(true);
+      // Clear the flag so it doesn't re-trigger
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, _autoEdit: undefined } } : n
+        )
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data._autoEdit]);
 
   function handleLabelChange(newLabel: string) {
     setNodes((nds) =>
@@ -74,6 +102,7 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
   }
 
   function handleColorChange(color: string) {
+    pushSnapshot?.();
     setNodes((nds) =>
       nds.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, color } } : n
@@ -83,7 +112,41 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
 
   function handleDoubleClick(e: React.MouseEvent) {
     e.stopPropagation();
+    pushSnapshot?.();
     setEditing(true);
+  }
+
+  function handleQuickAddClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    onQuickAdd?.(id);
+  }
+
+  function handleDeleteThis(e: React.MouseEvent) {
+    e.stopPropagation();
+    pushSnapshot?.();
+    setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id));
+    setNodes((nds) => nds.filter((n) => n.id !== id));
+  }
+
+  function handleDuplicate(e: React.MouseEvent) {
+    e.stopPropagation();
+    pushSnapshot?.();
+    const newId = `node-${Date.now()}`;
+    setNodes((nds) => {
+      const source = nds.find((n) => n.id === id);
+      if (!source) return nds;
+      const dup: MindMapNode = {
+        id: newId,
+        type: 'mindmap',
+        position: { x: source.position.x + 30, y: source.position.y + 30 },
+        data: { label: source.data.label, color: source.data.color },
+      };
+      return [
+        ...nds.map((n) => ({ ...n, selected: false })),
+        { ...dup, selected: true },
+      ];
+    });
   }
 
   const label = typeof data.label === 'string' ? data.label : 'Node';
@@ -94,11 +157,18 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={[
-        'rounded-xl border-2 shadow-sm transition-shadow cursor-default',
+        'rounded-xl border-2 shadow-sm transition-shadow cursor-default relative',
         selected ? 'border-blue-400 shadow-md' : 'border-slate-200 hover:border-slate-300',
       ].join(' ')}
       style={{ minWidth: 80, backgroundColor: bgColor }}
     >
+      {/* Target handle — left side (incoming edges) */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!w-2 !h-2 !bg-slate-300 !border-slate-400"
+      />
+
       <NodeEditor
         value={label}
         onChange={handleLabelChange}
@@ -106,11 +176,28 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
         onEditingChange={setEditing}
         readOnly={false}
       />
-      {showSwatches && (
+      {showMiniToolbar && (
         <div
-          className="flex gap-1 px-2 pb-2 justify-center"
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 flex items-center gap-1 px-2 py-1.5 bg-white rounded-lg shadow-md border border-slate-200 z-10"
           onMouseDown={(e) => e.stopPropagation()}
         >
+          <button
+            type="button"
+            onClick={handleDeleteThis}
+            className="p-1 rounded hover:bg-red-50 hover:text-red-600 transition-colors text-slate-500"
+            title="Delete node"
+          >
+            <span className="text-sm">🗑</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDuplicate}
+            className="p-1 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors text-slate-500"
+            title="Duplicate node (Ctrl+D)"
+          >
+            <span className="text-sm">📋</span>
+          </button>
+          <div className="w-px h-4 bg-slate-200 mx-0.5" />
           {PRESET_COLORS.map((c) => (
             <button
               key={c}
@@ -129,6 +216,28 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
           ))}
         </div>
       )}
+
+      {/* Source handle — right side, styled as "+" quick-add button */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!w-5 !h-5 !bg-slate-800 !border-2 !border-white !rounded-full !right-[-10px]"
+        style={{
+          opacity: hovered || selected ? 1 : 0,
+          transition: 'opacity 150ms',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        onClick={handleQuickAddClick}
+      >
+        <span
+          className="text-white text-xs font-bold leading-none pointer-events-none select-none"
+          style={{ fontSize: 12 }}
+        >
+          +
+        </span>
+      </Handle>
     </div>
   );
 }
@@ -137,7 +246,7 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
 // Custom node — read-only (viewer)
 // ---------------------------------------------------------------------------
 
-    function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
+function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
   const { data } = props;
   const label = typeof data.label === 'string' ? data.label : 'Node';
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
@@ -147,7 +256,19 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
       className="rounded-xl border-2 border-slate-200 shadow-sm cursor-default"
       style={{ minWidth: 80, backgroundColor: bgColor }}
     >
+      {/* Target handle — left side (incoming edges) */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!w-2 !h-2 !bg-slate-300 !border-slate-400"
+      />
       <NodeEditor value={label} readOnly />
+      {/* Source handle — right side (for edge rendering, hidden) */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!w-2 !h-2 !bg-slate-300 !border-slate-400"
+      />
     </div>
   );
 }
@@ -183,6 +304,62 @@ interface CanvasInnerProps {
 
   // Ref to the React Flow wrapper for export
   const flowWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Undo/redo history
+  const MAX_HISTORY = 20;
+  const pastRef = useRef<Snapshot[]>([]);
+  const futureRef = useRef<Snapshot[]>([]);
+  const nodesRef = useRef<MindMapNode[]>(nodes);
+  const edgesRef = useRef<MindMapEdge[]>(edges);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => { edgesRef.current = edges; }, [edges]);
+
+  // Copy-paste clipboard (local, not system clipboard)
+  const clipboardRef = useRef<{ nodes: MindMapNode[] }>({ nodes: [] });
+  const pasteCountRef = useRef(0);
+
+  const pushSnapshot = useCallback(() => {
+    pastRef.current = [
+      ...pastRef.current.slice(-(MAX_HISTORY - 1)),
+      { nodes: nodesRef.current, edges: edgesRef.current },
+    ];
+    futureRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  function undo() {
+    if (pastRef.current.length === 0) return;
+    const prev = pastRef.current[pastRef.current.length - 1];
+    pastRef.current = pastRef.current.slice(0, -1);
+    futureRef.current = [
+      ...futureRef.current,
+      { nodes: nodesRef.current, edges: edgesRef.current },
+    ];
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+    debouncedSave(prev.nodes, prev.edges);
+    setCanUndo(pastRef.current.length > 0);
+    setCanRedo(true);
+  }
+
+  function redo() {
+    if (futureRef.current.length === 0) return;
+    const next = futureRef.current[futureRef.current.length - 1];
+    futureRef.current = futureRef.current.slice(0, -1);
+    pastRef.current = [
+      ...pastRef.current,
+      { nodes: nodesRef.current, edges: edgesRef.current },
+    ];
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    debouncedSave(next.nodes, next.edges);
+    setCanUndo(true);
+    setCanRedo(futureRef.current.length > 0);
+  }
 
   const { screenToFlowPosition, fitView } = useReactFlow<MindMapNode, MindMapEdge>();
 
@@ -350,6 +527,7 @@ interface CanvasInnerProps {
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
+      pushSnapshot();
       setEdges((eds) => {
         const updated = addEdge({ ...connection, type: 'smoothstep' }, eds);
         debouncedSave(nodes, updated);
@@ -361,8 +539,8 @@ interface CanvasInnerProps {
   );
 
   // -------------------------------------------------------------------------
-  // Watch for label changes from the custom node (setNodes called directly).
-  // We fire a debounced save whenever `nodes` changes after initial load.
+  // Watch for label/color/node changes from the custom node (setNodes called
+  // directly). We fire a debounced save whenever `nodes` changes after load.
   // -------------------------------------------------------------------------
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -380,6 +558,7 @@ interface CanvasInnerProps {
   // Add node — placed at current viewport center
   // -------------------------------------------------------------------------
   function handleAddNode() {
+    pushSnapshot();
     const position = screenToFlowPosition({
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
@@ -400,9 +579,73 @@ interface CanvasInnerProps {
   }
 
   // -------------------------------------------------------------------------
+  // Double-click empty canvas — create node at click position
+  // -------------------------------------------------------------------------
+  function handleCanvasDoubleClick(e: React.MouseEvent) {
+    if (!canEdit) return;
+    const target = e.target as HTMLElement;
+    if (!target.classList.contains('react-flow__pane')) return;
+
+    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    pushSnapshot();
+
+    const newNode: MindMapNode = {
+      id: `node-${Date.now()}`,
+      type: 'mindmap',
+      position,
+      data: { label: 'New Node', _autoEdit: true },
+    };
+
+    setNodes((nds) => {
+      const updated = [...nds, newNode];
+      debouncedSave(updated, edges);
+      return updated;
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Quick-add — "+" button on node creates child node + edge
+  // -------------------------------------------------------------------------
+  const handleQuickAdd = useCallback(
+    (sourceId: string) => {
+      pushSnapshot();
+      const newId = `node-${Date.now()}`;
+
+      setNodes((nds) => {
+        const sourceNode = nds.find((n) => n.id === sourceId);
+        if (!sourceNode) return nds;
+
+        const newNode: MindMapNode = {
+          id: newId,
+          type: 'mindmap',
+          position: {
+            x: sourceNode.position.x + 250,
+            y: sourceNode.position.y,
+          },
+          data: { label: 'New Node', _autoEdit: true },
+        };
+
+        return [...nds, newNode];
+      });
+
+      setEdges((eds) => [
+        ...eds,
+        {
+          id: `edge-${sourceId}-${newId}`,
+          source: sourceId,
+          target: newId,
+          type: 'smoothstep',
+        },
+      ]);
+    },
+    []
+  );
+
+  // -------------------------------------------------------------------------
   // Delete selected nodes/edges (toolbar button + Delete key)
   // -------------------------------------------------------------------------
   function handleDeleteSelected() {
+    pushSnapshot();
     let remainingNodes: MindMapNode[] = [];
     let remainingEdges: MindMapEdge[] = [];
 
@@ -476,18 +719,185 @@ interface CanvasInnerProps {
   }
 
   // -------------------------------------------------------------------------
-  // Keyboard handler — Delete / Backspace when no text input is focused
+  // Keyboard handler — shortcuts for fast node creation & editing
   // -------------------------------------------------------------------------
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (!canEdit) return;
-    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-
+    // Guard: never fire shortcuts while typing inside a NodeEditor textarea
     const active = document.activeElement;
     const isTextInput =
       active instanceof HTMLInputElement ||
       active instanceof HTMLTextAreaElement;
-    if (!isTextInput) {
+
+    // --- Escape: deselect all (works even in read-only) ---
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+      setEdges((eds) => eds.map((ed) => ({ ...ed, selected: false })));
+      return;
+    }
+
+    if (!canEdit) return;
+    if (isTextInput) return;
+
+    const selectedNode = nodes.find((n) => n.selected);
+
+    // --- Ctrl+A / Cmd+A: select all nodes ---
+    if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      setNodes((nds) => nds.map((n) => ({ ...n, selected: true })));
+      return;
+    }
+
+    // --- Ctrl+Z: undo ---
+    if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+
+    // --- Ctrl+Shift+Z / Ctrl+Y: redo ---
+    if (
+      (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey) ||
+      (e.key === 'y' && (e.ctrlKey || e.metaKey))
+    ) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    // --- Ctrl+C: copy selected nodes ---
+    if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      const selected = nodes.filter((n) => n.selected);
+      if (selected.length > 0) {
+        clipboardRef.current = { nodes: selected };
+        pasteCountRef.current = 0;
+      }
+      return;
+    }
+
+    // --- Ctrl+V: paste copied nodes ---
+    if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      const clip = clipboardRef.current;
+      if (clip.nodes.length === 0) return;
+      pasteCountRef.current += 1;
+      const offset = pasteCountRef.current * 30;
+      pushSnapshot();
+      const newNodes: MindMapNode[] = clip.nodes.map((n) => ({
+        id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        type: 'mindmap' as const,
+        position: { x: n.position.x + offset, y: n.position.y + offset },
+        data: { label: n.data.label, color: n.data.color },
+      }));
+      setNodes((nds) => [
+        ...nds.map((nd) => ({ ...nd, selected: false })),
+        ...newNodes.map((nd) => ({ ...nd, selected: true })),
+      ]);
+      return;
+    }
+    // --- Delete / Backspace: delete selected ---
+    if (e.key === 'Delete' || e.key === 'Backspace') {
       handleDeleteSelected();
+      return;
+    }
+
+    if (!selectedNode) return;
+
+    // --- Ctrl+D: duplicate selected node ---
+    if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      pushSnapshot();
+      const newId = `node-${Date.now()}`;
+      setNodes((nds) => {
+        const source = nds.find((n) => n.id === selectedNode.id);
+        if (!source) return nds;
+        const dup: MindMapNode = {
+          id: newId,
+          type: 'mindmap',
+          position: { x: source.position.x + 30, y: source.position.y + 30 },
+          data: { label: source.data.label, color: source.data.color },
+        };
+        return [
+          ...nds.map((n) => ({ ...n, selected: false })),
+          { ...dup, selected: true },
+        ];
+      });
+      return;
+    }
+
+    // --- F2: enter edit mode on selected node ---
+    if (e.key === 'F2') {
+      e.preventDefault();
+      pushSnapshot();
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === selectedNode.id
+            ? { ...n, data: { ...n.data, _autoEdit: true } }
+            : n
+        )
+      );
+      return;
+    }
+
+    // --- Tab: create child node (X + 250, same Y) ---
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      pushSnapshot();
+      const childId = `node-${Date.now()}`;
+      const childNode: MindMapNode = {
+        id: childId,
+        type: 'mindmap',
+        position: {
+          x: selectedNode.position.x + 250,
+          y: selectedNode.position.y,
+        },
+        data: { label: 'New Node', _autoEdit: true },
+      };
+      setNodes((nds) => [
+        ...nds.map((n) => ({ ...n, selected: false })),
+        { ...childNode, selected: true },
+      ]);
+      setEdges((eds) => [
+        ...eds,
+        {
+          id: `edge-${selectedNode.id}-${childId}`,
+          source: selectedNode.id,
+          target: childId,
+          type: 'smoothstep',
+        },
+      ]);
+      return;
+    }
+
+    // --- Enter: create sibling node (same X, Y + 100) ---
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      pushSnapshot();
+      const siblingId = `node-${Date.now()}`;
+      const siblingNode: MindMapNode = {
+        id: siblingId,
+        type: 'mindmap',
+        position: {
+          x: selectedNode.position.x,
+          y: selectedNode.position.y + 100,
+        },
+        data: { label: 'New Node', _autoEdit: true },
+      };
+      setNodes((nds) => [
+        ...nds.map((n) => ({ ...n, selected: false })),
+        { ...siblingNode, selected: true },
+      ]);
+      setEdges((eds) => [
+        ...eds,
+        {
+          id: `edge-${selectedNode.id}-${siblingId}`,
+          source: selectedNode.id,
+          target: siblingId,
+          type: 'smoothstep',
+        },
+      ]);
+      return;
     }
   }
 
@@ -512,6 +922,8 @@ interface CanvasInnerProps {
   }
 
   return (
+    <UndoRedoContext.Provider value={pushSnapshot}>
+    <QuickAddContext.Provider value={handleQuickAdd}>
     <div
       className="w-full h-full flex flex-col outline-none"
       onKeyDown={handleKeyDown}
@@ -535,15 +947,20 @@ interface CanvasInnerProps {
         onExportPdf={handleExportPdf}
         onExportJson={handleExportJson}
         saveStatus={saveStatus}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
-      <div className="flex-1 relative" ref={flowWrapperRef}>
+      <div className="flex-1 relative" ref={flowWrapperRef} onDoubleClick={handleCanvasDoubleClick}>
         <ReactFlow<MindMapNode, MindMapEdge>
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={canEdit ? onConnect : undefined}
+          onNodeDragStart={canEdit ? () => pushSnapshot() : undefined}
           nodeTypes={nodeTypes}
           nodesDraggable={!readOnly}
           nodesConnectable={!readOnly}
@@ -596,6 +1013,8 @@ interface CanvasInnerProps {
         />
       )}
     </div>
+    </QuickAddContext.Provider>
+    </UndoRedoContext.Provider>
   );
 }
 
