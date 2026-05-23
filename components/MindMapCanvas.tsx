@@ -40,6 +40,7 @@ import type { AccessRole } from '@/lib/tokenUtils';
 
 export interface MindMapNodeData extends Record<string, unknown> {
   label: string;
+  color?: string;
 }
 
 export type MindMapNode = Node<MindMapNodeData>;
@@ -50,15 +51,32 @@ export type MindMapEdge = Edge;
   // In @xyflow/react v12 NodeProps generic is Node<DataType>, not DataType
   // ---------------------------------------------------------------------------
 
+const PRESET_COLORS = [
+  '#ffffff', '#fef08a', '#bbf7d0', '#bfdbfe',
+  '#fecaca', '#e9d5ff', '#fed7aa', '#f1f5f9',
+];
+
 function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
   const { id, data, selected } = props;
   const [editing, setEditing] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const { setNodes } = useReactFlow<MindMapNode, MindMapEdge>();
+
+  const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
+  const showSwatches = hovered || selected;
 
   function handleLabelChange(newLabel: string) {
     setNodes((nds) =>
       nds.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, label: newLabel } } : n
+      )
+    );
+  }
+
+  function handleColorChange(color: string) {
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, color } } : n
       )
     );
   }
@@ -73,11 +91,13 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
   return (
     <div
       onDoubleClick={handleDoubleClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       className={[
-        'bg-white rounded-xl border-2 shadow-sm transition-shadow cursor-default',
+        'rounded-xl border-2 shadow-sm transition-shadow cursor-default',
         selected ? 'border-blue-400 shadow-md' : 'border-slate-200 hover:border-slate-300',
       ].join(' ')}
-      style={{ minWidth: 80 }}
+      style={{ minWidth: 80, backgroundColor: bgColor }}
     >
       <NodeEditor
         value={label}
@@ -86,6 +106,29 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
         onEditingChange={setEditing}
         readOnly={false}
       />
+      {showSwatches && (
+        <div
+          className="flex gap-1 px-2 pb-2 justify-center"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {PRESET_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleColorChange(c);
+              }}
+              className={[
+                'w-4 h-4 rounded-full border transition-transform hover:scale-125',
+                c === bgColor ? 'border-blue-500 ring-1 ring-blue-400' : 'border-slate-300',
+              ].join(' ')}
+              style={{ backgroundColor: c }}
+              aria-label={`Set node color to ${c}`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -97,11 +140,12 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
     function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
   const { data } = props;
   const label = typeof data.label === 'string' ? data.label : 'Node';
+  const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
 
   return (
     <div
-      className="bg-white rounded-xl border-2 border-slate-200 shadow-sm cursor-default"
-      style={{ minWidth: 80 }}
+      className="rounded-xl border-2 border-slate-200 shadow-sm cursor-default"
+      style={{ minWidth: 80, backgroundColor: bgColor }}
     >
       <NodeEditor value={label} readOnly />
     </div>
@@ -140,7 +184,7 @@ interface CanvasInnerProps {
   // Ref to the React Flow wrapper for export
   const flowWrapperRef = useRef<HTMLDivElement>(null);
 
-  const { screenToFlowPosition } = useReactFlow<MindMapNode, MindMapEdge>();
+  const { screenToFlowPosition, fitView } = useReactFlow<MindMapNode, MindMapEdge>();
 
   const canEdit = role === 'owner' || role === 'editor';
   const readOnly = !canEdit;
@@ -221,6 +265,21 @@ interface CanvasInnerProps {
     loadMap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapId]);
+
+  // -------------------------------------------------------------------------
+  // Auto-fit on initial load — once only, with smooth animation
+  // -------------------------------------------------------------------------
+  const hasFittedView = useRef(false);
+  useEffect(() => {
+    if (!loading && !error && nodes.length > 0 && !hasFittedView.current) {
+      hasFittedView.current = true;
+      // Allow React Flow one frame to measure node dimensions
+      requestAnimationFrame(() => {
+        fitView({ padding: 0.2, duration: 400 });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   // -------------------------------------------------------------------------
   // Debounced save — 1500ms after last change (per spec)
@@ -491,8 +550,6 @@ interface CanvasInnerProps {
           elementsSelectable={!readOnly}
           zoomOnScroll
           panOnDrag
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
           defaultEdgeOptions={{ type: 'smoothstep' }}
           deleteKeyCode={null}
         >
