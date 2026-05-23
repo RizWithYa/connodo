@@ -158,13 +158,30 @@ interface CanvasInnerProps {
       setError(null);
 
       try {
+        // 1. Resolve the token (URL props vs localStorage)
+        let activeColumn = tokenColumn;
+        let activeToken = token;
+
+        if (!activeToken && typeof window !== 'undefined') {
+          const storedToken = localStorage.getItem(`mindmap_owned_${mapId}`);
+          if (storedToken) {
+            activeColumn = 'owner_token';
+            activeToken = storedToken;
+          }
+        }
+
+        // 2. Build the query to explicitly filter by the resolved token
         let query = supabase
           .from('mindmaps')
           .select('*')
           .eq('id', mapId);
 
-        if (tokenColumn && token) {
-          query = query.eq(tokenColumn, token);
+        if (activeColumn && activeToken) {
+          query = query.eq(activeColumn, activeToken);
+        } else {
+          // If absolutely no token is provided, we should ideally fail or let RLS reject.
+          // For safety, we can explicitly add an impossible condition if anon reads are strictly token-gated.
+          // But we'll let RLS / DB handle the empty state.
         }
 
         const { data, error: fetchError } = await query.single();

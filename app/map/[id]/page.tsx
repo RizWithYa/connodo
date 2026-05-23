@@ -11,31 +11,33 @@ import type { AccessRole } from '@/lib/tokenUtils';
  * role immediately without a client-side localStorage read on first paint.
  * localStorage check (returning owner) is handled inside MindMapCanvas on mount.
  */
-export default function MapPage({
+export default async function MapPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: { owner?: string; edit?: string; view?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ owner?: string; edit?: string; view?: string }>;
 }) {
-  const mapId = params.id;
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+  const mapId = resolvedParams.id;
 
   // Resolve role + token from URL params (server-side — no localStorage here)
   let role: AccessRole = 'viewer';
   let token: string | null = null;
   let tokenColumn: 'owner_token' | 'edit_token' | 'view_token' | null = null;
 
-  if (searchParams.owner) {
+  if (resolvedSearchParams.owner) {
     role = 'owner';
-    token = searchParams.owner;
+    token = resolvedSearchParams.owner;
     tokenColumn = 'owner_token';
-  } else if (searchParams.edit) {
+  } else if (resolvedSearchParams.edit) {
     role = 'editor';
-    token = searchParams.edit;
+    token = resolvedSearchParams.edit;
     tokenColumn = 'edit_token';
-  } else if (searchParams.view) {
+  } else if (resolvedSearchParams.view) {
     role = 'viewer';
-    token = searchParams.view;
+    token = resolvedSearchParams.view;
     tokenColumn = 'view_token';
   }
   // If no token in URL, MindMapCanvas will check localStorage on mount
