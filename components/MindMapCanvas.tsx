@@ -25,7 +25,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { supabase } from '@/lib/supabase';
+import { supabase, createTokenClient } from '@/lib/supabase';
 import { useDebounce } from '@/lib/useDebounce';
 import NodeEditor from '@/components/NodeEditor';
 import Toolbar from '@/components/Toolbar';
@@ -171,7 +171,9 @@ interface CanvasInnerProps {
         }
 
         // 2. Build the query to explicitly filter by the resolved token
-        let query = supabase
+        const client = activeToken ? createTokenClient(activeToken) : supabase;
+
+        let query = client
           .from('mindmaps')
           .select('*')
           .eq('id', mapId);
@@ -227,7 +229,8 @@ interface CanvasInnerProps {
     async (nodesToSave: MindMapNode[], edgesToSave: MindMapEdge[]) => {
       setSaveStatus('saving');
       try {
-        let query = supabase
+        const client = token ? createTokenClient(token) : supabase;
+        let query = client
           .from('mindmaps')
           .update({
             nodes: nodesToSave,
@@ -371,7 +374,8 @@ interface CanvasInnerProps {
     if (role !== 'owner' || !token) return;
 
     try {
-      const { error: deleteError } = await supabase
+      const client = createTokenClient(token);
+      const { error: deleteError } = await client
         .from('mindmaps')
         .delete()
         .eq('id', mapId)

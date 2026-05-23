@@ -22,26 +22,37 @@ export default function HomePage() {
     setCreateError(null);
 
     try {
-      const { data, error } = await supabase
-        .from('mindmaps')
-        .insert({ title: 'Untitled Map' })
-        .select('id, owner_token')
-        .single();
+      // 1. Generate the UUIDs on the client so we don't need a SELECT return.
+      // This avoids the RLS 401 Unauthorized issue caused by the SELECT policy
+      // trying to read the row without the token header during the INSERT...RETURNING phase.
+      const newId = crypto.randomUUID();
+      const newOwnerToken = crypto.randomUUID();
+      const newEditToken = crypto.randomUUID();
+      const newViewToken = crypto.randomUUID();
 
-      if (error || !data) {
+      // 2. Use the default client for the insert. Do NOT chain .select()
+      const { error } = await supabase
+        .from('mindmaps')
+        .insert({
+          id: newId,
+          title: 'Untitled Map',
+          owner_token: newOwnerToken,
+          edit_token: newEditToken,
+          view_token: newViewToken,
+        });
+
+      if (error) {
         console.error('Create failed:', error);
         setCreateError('Could not create map. Please try again.');
         return;
       }
 
-      const { id, owner_token } = data as { id: string; owner_token: string };
-
       // Persist so the owner can return without keeping the URL
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`mindmap_owned_${id}`, owner_token);
+        localStorage.setItem(`mindmap_owned_${newId}`, newOwnerToken);
       }
 
-      router.push(`/map/${id}?owner=${owner_token}`);
+      router.push(`/map/${newId}?owner=${newOwnerToken}`);
     } catch (e) {
       console.error('Create exception:', e);
       setCreateError('Unexpected error. Please try again.');

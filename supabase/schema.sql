@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS mindmaps (
   updated_at   TIMESTAMPTZ NOT NULL    DEFAULT NOW()
 );
 
+-- Grant standard access to all roles so RLS can take over
+GRANT ALL ON TABLE mindmaps TO anon;
+GRANT ALL ON TABLE mindmaps TO authenticated;
+GRANT ALL ON TABLE mindmaps TO service_role;
+
 -- ---------------------------------------------------------------------------
 -- 2. Enable Row Level Security
 -- ---------------------------------------------------------------------------

@@ -12,6 +12,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+/**
+ * Creates a Supabase client with the custom x-mindmap-token header
+ * used to securely pass token verifications to Postgres RLS.
+ */
+export function createTokenClient(token: string) {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        'x-mindmap-token': token,
+      },
+    },
+  });
+}
 // ---------------------------------------------------------------------------
 // Types matching the `mindmaps` table schema
 // ---------------------------------------------------------------------------
