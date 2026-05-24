@@ -164,77 +164,91 @@ export default function HomePage() {
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen p-8 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col items-center gap-2 mb-8">
-        <h1 className="text-4xl font-bold tracking-tight text-slate-900">
-          MindMap
-        </h1>
-        <p className="text-slate-500 text-center max-w-md">
-          A frictionless mind-mapping tool. No account required.
-        </p>
-      </div>
-
-      {/* Create button — always at top */}
-      <div className="flex justify-center mb-8">
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="rounded-lg bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-700 active:bg-slate-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {creating ? 'Creating…' : '+ Create New Map'}
-        </button>
-      </div>
-
-      {createError && (
-        <p className="text-red-500 text-sm text-center mb-6">{createError}</p>
-      )}
-
-      {/* Map list / empty state / loading */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <p className="text-slate-400 text-sm">Loading your maps…</p>
+    <main className="min-h-screen bg-[#1a2150]">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-[#111844] py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
+        {/* Subtle animated blobs background */}
+        <div className="absolute top-0 left-1/2 w-full max-w-5xl -translate-x-1/2 h-full overflow-hidden pointer-events-none opacity-40">
+          <div className="absolute top-10 left-10 w-64 h-64 bg-[#4B5694] rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob" />
+          <div className="absolute top-0 right-20 w-72 h-72 bg-[#7288AE] rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
+          <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-[#1a2150] rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
         </div>
-      ) : maps.length === 0 ? (
-        <div className="flex justify-center py-12">
-          <p className="text-slate-400 text-sm">
-            No maps yet. Create your first one!
+
+        <div className="relative z-10 text-center max-w-2xl mx-auto flex flex-col items-center gap-6">
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-[#EAE0CF]">
+            MindMap
+          </h1>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white">
+            Think freely. Share instantly.
+          </h2>
+          <p className="text-lg sm:text-xl text-[#7288AE] max-w-xl mx-auto">
+            Create beautiful mindmaps and share them with anyone — no account required.
           </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {maps.map((map) => (
-            <div
-              key={map.id}
-              className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+
+          <div className="mt-4">
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="rounded-xl bg-[#4B5694] px-8 py-4 text-base font-semibold text-white hover:bg-opacity-80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
             >
-              <h3 className="font-semibold text-slate-900 truncate mb-1">
-                {map.title}
-              </h3>
-              <p className="text-xs text-slate-400 mb-4">
-                Updated {formatDate(map.updatedAt)}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() =>
-                    router.push(`/map/${map.id}?owner=${map.ownerToken}`)
-                  }
-                  className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 transition-colors"
-                >
-                  Open
-                </button>
-                <button
-                  onClick={() => handleDelete(map.id, map.ownerToken)}
-                  disabled={deletingId === map.id}
-                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                >
-                  {deletingId === map.id ? 'Deleting…' : 'Delete'}
-                </button>
-              </div>
-            </div>
-          ))}
+              {creating ? 'Creating…' : '+ Create New Map'}
+            </button>
+          </div>
+          {createError && (
+            <p className="text-red-400 text-sm text-center mt-2">{createError}</p>
+          )}
         </div>
-      )}
+      </section>
+
+      {/* Map List Section */}
+      <section className="max-w-5xl mx-auto p-8">
+        <h2 className="text-2xl font-bold text-[#EAE0CF] mb-6">Your Maps</h2>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <p className="text-[#7288AE] text-sm animate-pulse">Loading your maps…</p>
+          </div>
+        ) : maps.length === 0 ? (
+          <div className="flex justify-center py-12">
+            <p className="text-[#7288AE] text-sm">
+              No maps yet. Create your first one!
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {maps.map((map) => (
+              <div
+                key={map.id}
+                className="rounded-xl bg-[#111844] border border-[#4B5694]/30 p-5 shadow-lg hover:shadow-xl transition-all hover:border-[#4B5694]"
+              >
+                <h3 className="font-semibold text-[#EAE0CF] truncate mb-1 text-lg">
+                  {map.title}
+                </h3>
+                <p className="text-xs text-[#7288AE] mb-5">
+                  Updated {formatDate(map.updatedAt)}
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() =>
+                      router.push(`/map/${map.id}?owner=${map.ownerToken}`)
+                    }
+                    className="flex-1 rounded-lg bg-[#4B5694] px-3 py-2 text-xs font-medium text-white hover:bg-opacity-80 transition-colors shadow-sm"
+                  >
+                    Open
+                  </button>
+                  <button
+                    onClick={() => handleDelete(map.id, map.ownerToken)}
+                    disabled={deletingId === map.id}
+                    className="rounded-lg border border-red-500/30 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                  >
+                    {deletingId === map.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
