@@ -16,6 +16,8 @@ interface ToolbarProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  isPresentationMode?: boolean;
+  onTogglePresentation?: () => void;
 }
 
 export default function Toolbar({
@@ -32,6 +34,8 @@ export default function Toolbar({
   onRedo,
   canUndo = false,
   canRedo = false,
+  isPresentationMode = false,
+  onTogglePresentation,
 }: ToolbarProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -113,6 +117,16 @@ export default function Toolbar({
           {saveStatus === 'error' && 'Save failed'}
         </span>
       )}
+
+      {/* Presentation Mode Toggle */}
+      <button
+        onClick={onTogglePresentation}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 transition-colors"
+        title="Presentation Mode (Ctrl+Shift+P)"
+      >
+        <span className="text-base leading-none">📺</span>
+        Present
+      </button>
 
       {/* Export dropdown — available to all roles */}
       <div className="relative" ref={exportRef}>

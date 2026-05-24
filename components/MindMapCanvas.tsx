@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ReactFlow,
@@ -14,7 +14,10 @@ import {
   applyNodeChanges,
   useReactFlow,
   ReactFlowProvider,
-  } from '@xyflow/react';
+  BaseEdge,
+  EdgeLabelRenderer,
+  getSmoothStepPath,
+} from '@xyflow/react';
   import type {
   Node,
   Edge,
@@ -22,8 +25,10 @@ import {
   OnEdgesChange,
   OnConnect,
   NodeTypes,
+  EdgeTypes,
   Connection,
   NodeProps,
+  EdgeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -43,6 +48,7 @@ import type { AccessRole } from '@/lib/tokenUtils';
 export interface MindMapNodeData extends Record<string, unknown> {
   label: string;
   color?: string;
+  shape?: string;
   _autoEdit?: boolean;
 }
 
@@ -110,6 +116,15 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
     );
   }
 
+  function handleShapeChange(newShape: string) {
+    pushSnapshot?.();
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, shape: newShape } } : n
+      )
+    );
+  }
+
   function handleColorChange(color: string) {
     pushSnapshot?.();
     setNodes((nds) =>
@@ -149,7 +164,7 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
         id: newId,
         type: 'mindmap',
         position: { x: source.position.x + 30, y: source.position.y + 30 },
-        data: { label: source.data.label, color: source.data.color },
+        data: { ...source.data, _autoEdit: undefined },
       };
       return [
         ...nds.map((n) => ({ ...n, selected: false })),
@@ -164,16 +179,39 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
     ? '!w-1.5 !h-1.5 !bg-slate-400 !border-slate-400 !rounded-full !min-w-0 !min-h-0'
     : '!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0';
 
+  const shape = typeof data.shape === 'string' ? data.shape : 'rounded';
+  const searchMatch = data._searchMatch as boolean | undefined;
+  const searchDimmed = data._searchDimmed as boolean | undefined;
+
+  let rootClasses = 'transition-shadow cursor-default relative ';
+  if (searchMatch) rootClasses += 'ring-2 ring-blue-500 z-50 ';
+  if (searchDimmed) rootClasses += 'opacity-30 ';
+  let rootStyle: React.CSSProperties = { minWidth: 80 };
+
+  const borderClass = selected ? 'border-blue-400 shadow-md' : 'border-slate-200 hover:border-slate-300';
+
+  if (shape === 'rectangle') {
+    rootClasses += 'border-2 shadow-sm rounded-none ' + borderClass;
+    rootStyle.backgroundColor = bgColor;
+  } else if (shape === 'circle') {
+    rootClasses += 'flex items-center justify-center';
+    rootStyle = { width: 80, height: 80 };
+  } else if (shape === 'diamond') {
+    rootClasses += 'flex items-center justify-center';
+    rootStyle = { width: 90, height: 90 };
+  } else {
+    // rounded
+    rootClasses += 'border-2 shadow-sm rounded-xl ' + borderClass;
+    rootStyle.backgroundColor = bgColor;
+  }
+
   return (
     <div
       onDoubleClick={handleDoubleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={[
-        'rounded-xl border-2 shadow-sm transition-shadow cursor-default relative',
-        selected ? 'border-blue-400 shadow-md' : 'border-slate-200 hover:border-slate-300',
-      ].join(' ')}
-      style={{ minWidth: 80, backgroundColor: bgColor }}
+      className={rootClasses}
+      style={rootStyle}
     >
       {/* Connection handles — 4 positions × (source + target), backward-compat order */}
       <Handle type="target" position={Position.Left} id="target-left" className={handleDotStyle} />
@@ -185,13 +223,45 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
       <Handle type="target" position={Position.Right} id="target-right" className={handleDotStyle} />
       <Handle type="source" position={Position.Left} id="source-left" className={handleDotStyle} />
 
-      <NodeEditor
-        value={label}
-        onChange={handleLabelChange}
-        editing={editing}
-        onEditingChange={setEditing}
-        readOnly={false}
-      />
+      {shape === 'diamond' ? (
+        <div 
+          className={`absolute inset-0 border-2 rounded-sm flex items-center justify-center overflow-hidden ${borderClass}`} 
+          style={{ transform: 'rotate(45deg)', backgroundColor: bgColor }} 
+        >
+          <div style={{ transform: 'rotate(-45deg)' }} className="w-full h-full flex items-center justify-center">
+            <NodeEditor
+              value={label}
+              onChange={handleLabelChange}
+              editing={editing}
+              onEditingChange={setEditing}
+              readOnly={false}
+            />
+          </div>
+        </div>
+      ) : shape === 'circle' ? (
+        <div 
+          className={`absolute inset-0 border-2 rounded-full flex items-center justify-center overflow-hidden ${borderClass}`} 
+          style={{ backgroundColor: bgColor }} 
+        >
+          <div className="w-full h-full flex items-center justify-center">
+            <NodeEditor
+              value={label}
+              onChange={handleLabelChange}
+              editing={editing}
+              onEditingChange={setEditing}
+              readOnly={false}
+            />
+          </div>
+        </div>
+      ) : (
+        <NodeEditor
+          value={label}
+          onChange={handleLabelChange}
+          editing={editing}
+          onEditingChange={setEditing}
+          readOnly={false}
+        />
+      )}
 
       {/* Mini toolbar — above node, on select (not editing) */}
       {showMiniToolbar && (
@@ -205,6 +275,26 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
           <button type="button" onClick={handleDuplicate} className="p-1 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors text-slate-500" title="Duplicate node (Ctrl+D)">
             <span className="text-sm">📋</span>
           </button>
+          <div className="w-px h-4 bg-slate-200 mx-0.5" />
+          {[
+            { id: 'rectangle', icon: '□' },
+            { id: 'rounded', icon: '▢' },
+            { id: 'circle', icon: '○' },
+            { id: 'diamond', icon: '◇' },
+          ].map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleShapeChange(s.id); }}
+              className={[
+                'w-5 h-5 flex items-center justify-center rounded transition-transform hover:scale-110',
+                s.id === shape ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-400' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+              ].join(' ')}
+              title={`Shape: ${s.id}`}
+            >
+              {s.icon}
+            </button>
+          ))}
           <div className="w-px h-4 bg-slate-200 mx-0.5" />
           {PRESET_COLORS.map((c) => (
             <button
@@ -243,14 +333,36 @@ function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
   const { data } = props;
   const label = typeof data.label === 'string' ? data.label : 'Node';
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
+  const shape = typeof data.shape === 'string' ? data.shape : 'rounded';
+  const searchMatch = data._searchMatch as boolean | undefined;
+  const searchDimmed = data._searchDimmed as boolean | undefined;
+
+  let rootClasses = 'transition-shadow cursor-default relative ';
+  if (searchMatch) rootClasses += 'ring-2 ring-blue-500 z-50 ';
+  if (searchDimmed) rootClasses += 'opacity-30 ';
+  let rootStyle: React.CSSProperties = { minWidth: 80 };
+
+  const borderClass = 'border-slate-200';
+
+  if (shape === 'rectangle') {
+    rootClasses += 'border-2 shadow-sm rounded-none ' + borderClass;
+    rootStyle.backgroundColor = bgColor;
+  } else if (shape === 'circle') {
+    rootClasses += 'flex items-center justify-center';
+    rootStyle = { width: 80, height: 80 };
+  } else if (shape === 'diamond') {
+    rootClasses += 'flex items-center justify-center';
+    rootStyle = { width: 90, height: 90 };
+  } else {
+    // rounded
+    rootClasses += 'border-2 shadow-sm rounded-xl ' + borderClass;
+    rootStyle.backgroundColor = bgColor;
+  }
 
   const hiddenHandle = '!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0';
 
   return (
-    <div
-      className="rounded-xl border-2 border-slate-200 shadow-sm cursor-default"
-      style={{ minWidth: 80, backgroundColor: bgColor }}
-    >
+    <div className={rootClasses} style={rootStyle}>
       <Handle type="target" position={Position.Left} id="target-left" className={hiddenHandle} />
       <Handle type="source" position={Position.Right} id="source-right" className={hiddenHandle} />
       <Handle type="target" position={Position.Top} id="target-top" className={hiddenHandle} />
@@ -259,8 +371,179 @@ function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
       <Handle type="source" position={Position.Bottom} id="source-bottom" className={hiddenHandle} />
       <Handle type="target" position={Position.Right} id="target-right" className={hiddenHandle} />
       <Handle type="source" position={Position.Left} id="source-left" className={hiddenHandle} />
-      <NodeEditor value={label} readOnly />
+
+      {shape === 'diamond' ? (
+        <div 
+          className={`absolute inset-0 border-2 rounded-sm flex items-center justify-center overflow-hidden ${borderClass}`} 
+          style={{ transform: 'rotate(45deg)', backgroundColor: bgColor }} 
+        >
+          <div style={{ transform: 'rotate(-45deg)' }} className="w-full h-full flex items-center justify-center">
+            <NodeEditor value={label} readOnly />
+          </div>
+        </div>
+      ) : shape === 'circle' ? (
+        <div 
+          className={`absolute inset-0 border-2 rounded-full flex items-center justify-center overflow-hidden ${borderClass}`} 
+          style={{ backgroundColor: bgColor }} 
+        >
+          <div className="w-full h-full flex items-center justify-center">
+            <NodeEditor value={label} readOnly />
+          </div>
+        </div>
+      ) : (
+        <NodeEditor value={label} readOnly />
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Custom edge — editable (owner / editor)
+// ---------------------------------------------------------------------------
+
+function MindMapEdgeEditable(props: EdgeProps<MindMapEdge>) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data, style, markerEnd, label } = props;
+  const { setEdges } = useReactFlow();
+  const pushSnapshot = useContext(UndoRedoContext);
+
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+  });
+
+  const strokeStyle = data?.strokeStyle as string | undefined;
+  const currentLabel = (data?.label as string) || (label as string) || '';
+  const [localLabel, setLocalLabel] = useState(currentLabel);
+
+  useEffect(() => {
+    setLocalLabel(currentLabel);
+  }, [currentLabel]);
+
+  let strokeDasharray = undefined;
+  if (strokeStyle === 'dashed') strokeDasharray = '6 3';
+  if (strokeStyle === 'dotted') strokeDasharray = '2 4';
+
+  const edgeStyle = { ...style, strokeDasharray };
+
+  const saveLabel = () => {
+    if (localLabel === currentLabel) return;
+    pushSnapshot?.();
+    setEdges((eds) => eds.map(e => {
+      if (e.id === id) {
+        return { ...e, label: localLabel, data: { ...e.data, label: localLabel } };
+      }
+      return e;
+    }));
+  };
+
+  const setEdgeStyle = (newStyle: string) => {
+    if (strokeStyle === newStyle) return;
+    pushSnapshot?.();
+    setEdges((eds) => eds.map(e => {
+      if (e.id === id) {
+        return { ...e, data: { ...e.data, strokeStyle: newStyle } };
+      }
+      return e;
+    }));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setLocalLabel(currentLabel);
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={edgeStyle} markerEnd={markerEnd} interactionWidth={20} />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: 'all',
+            zIndex: selected ? 10 : 1,
+          }}
+          className="flex flex-col items-center gap-1.5"
+        >
+          {selected && (
+            <div
+              className="flex bg-white shadow-md border border-slate-200 rounded-md p-0.5 gap-0.5"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button onClick={() => setEdgeStyle('solid')} className={`px-2 py-0.5 text-xs font-bold rounded ${!strokeStyle || strokeStyle === 'solid' ? 'bg-slate-100 text-blue-600' : 'hover:bg-slate-50 text-slate-500'}`} title="Solid">—</button>
+              <button onClick={() => setEdgeStyle('dashed')} className={`px-2 py-0.5 text-xs font-bold rounded ${strokeStyle === 'dashed' ? 'bg-slate-100 text-blue-600' : 'hover:bg-slate-50 text-slate-500'}`} title="Dashed">- -</button>
+              <button onClick={() => setEdgeStyle('dotted')} className={`px-2 py-0.5 text-xs font-bold rounded ${strokeStyle === 'dotted' ? 'bg-slate-100 text-blue-600' : 'hover:bg-slate-50 text-slate-500'}`} title="Dotted">···</button>
+            </div>
+          )}
+
+          {selected ? (
+            <input
+              placeholder="Edge label..."
+              className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-xs text-center shadow-sm outline-none focus:ring-1 focus:ring-blue-400"
+              style={{ width: Math.max(80, localLabel.length * 8 + 16) }}
+              value={localLabel}
+              onChange={(e) => setLocalLabel(e.target.value)}
+              onBlur={saveLabel}
+              onKeyDown={handleKeyDown}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+          ) : localLabel ? (
+            <div className="bg-white/90 px-1.5 py-0.5 rounded text-xs font-medium text-slate-600 shadow-sm border border-slate-100/50">
+              {localLabel}
+            </div>
+          ) : null}
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Custom edge — read-only (viewer)
+// ---------------------------------------------------------------------------
+
+function MindMapEdgeReadOnly(props: EdgeProps<MindMapEdge>) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, markerEnd, label } = props;
+
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
+    sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+  });
+
+  const strokeStyle = data?.strokeStyle as string | undefined;
+  const currentLabel = (data?.label as string) || (label as string) || '';
+
+  let strokeDasharray = undefined;
+  if (strokeStyle === 'dashed') strokeDasharray = '6 3';
+  if (strokeStyle === 'dotted') strokeDasharray = '2 4';
+
+  const edgeStyle = { ...style, strokeDasharray };
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={edgeStyle} markerEnd={markerEnd} />
+      {currentLabel && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              pointerEvents: 'none',
+            }}
+            className="flex flex-col items-center gap-1.5"
+          >
+            <div className="bg-white/90 px-1.5 py-0.5 rounded text-xs font-medium text-slate-600 shadow-sm border border-slate-100/50">
+              {currentLabel}
+            </div>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
   );
 }
 
@@ -357,9 +640,68 @@ interface CanvasInnerProps {
   const canEdit = role === 'owner' || role === 'editor';
   const readOnly = !canEdit;
 
-  const nodeTypes: NodeTypes = {
-    mindmap: readOnly ? MindMapNodeReadOnly : MindMapNodeEditable,
-  };
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchOpen]);
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchTerm('');
+    if (flowWrapperRef.current) {
+      flowWrapperRef.current.focus();
+    }
+  }, []);
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!searchTerm) return;
+      const lower = searchTerm.toLowerCase();
+      const firstMatch = nodes.find(n => (typeof n.data.label === 'string') && n.data.label.toLowerCase().includes(lower));
+      if (firstMatch) {
+        fitView({ nodes: [{ id: firstMatch.id }], padding: 0.5, duration: 400 });
+      }
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+    }
+    e.stopPropagation();
+  }
+
+  const displayNodes = useMemo(() => {
+    if (!isSearchOpen || !searchTerm) return nodes;
+    const lower = searchTerm.toLowerCase();
+    return nodes.map((n) => {
+      const match = (typeof n.data.label === 'string') && n.data.label.toLowerCase().includes(lower);
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          _searchMatch: match,
+          _searchDimmed: !match,
+        }
+      };
+    });
+  }, [nodes, isSearchOpen, searchTerm]);
+
+  const isCanvasReadOnly = !canEdit || isPresentationMode;
+
+  const nodeTypes: NodeTypes = useMemo(() => ({
+    mindmap: isCanvasReadOnly ? MindMapNodeReadOnly : MindMapNodeEditable,
+  }), [isCanvasReadOnly]);
+
+  const edgeTypes: EdgeTypes = useMemo(() => ({
+    smoothstep: isCanvasReadOnly ? MindMapEdgeReadOnly : MindMapEdgeEditable,
+  }), [isCanvasReadOnly]);
 
   // -------------------------------------------------------------------------
   // Load map data on mount
@@ -444,12 +786,31 @@ interface CanvasInnerProps {
   // Auto-fit on initial load — once only, with smooth animation
   // -------------------------------------------------------------------------
   const hasFittedView = useRef(false);
+  const hasCapturedThumb = useRef(false);
   useEffect(() => {
     if (!loading && !error && nodes.length > 0 && !hasFittedView.current) {
       hasFittedView.current = true;
       // Allow React Flow one frame to measure node dimensions
       requestAnimationFrame(() => {
         fitView({ padding: 0.2, duration: 400 });
+
+        // Capture thumbnail after fitView completes (e.g., 500ms delay post-fitView = 900ms)
+        setTimeout(() => {
+          const container = flowWrapperRef.current?.querySelector('.react-flow') as HTMLElement || flowWrapperRef.current;
+          if (!hasCapturedThumb.current && container && typeof window !== 'undefined') {
+            hasCapturedThumb.current = true;
+            import('html-to-image').then(({ toJpeg }) => {
+              toJpeg(container, {
+                quality: 0.2,
+                canvasWidth: 400,
+                canvasHeight: 225,
+                pixelRatio: 1,
+              }).then((dataUrl) => {
+                localStorage.setItem(`mindmap_thumb_${mapId}`, dataUrl);
+              }).catch(err => console.error('Thumb capture failed', err));
+            });
+          }
+        }, 900);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -549,7 +910,7 @@ interface CanvasInnerProps {
       debouncedSave(nodes, edges);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes]);
+  }, [nodes, edges]);
 
   // -------------------------------------------------------------------------
   // Add node — placed at current viewport center
@@ -728,16 +1089,37 @@ interface CanvasInnerProps {
       active instanceof HTMLInputElement ||
       active instanceof HTMLTextAreaElement;
 
-    // --- Escape: deselect all (works even in read-only) ---
+    // --- Escape: close search, exit presentation, or deselect all ---
     if (e.key === 'Escape') {
       e.preventDefault();
-      setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
-      setEdges((eds) => eds.map((ed) => ({ ...ed, selected: false })));
+      if (isSearchOpen) {
+        closeSearch();
+      } else if (isPresentationMode) {
+        setIsPresentationMode(false);
+      } else {
+        setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+        setEdges((eds) => eds.map((ed) => ({ ...ed, selected: false })));
+      }
+      return;
+    }
+
+    // --- Search: Ctrl+F ---
+    if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      setIsSearchOpen(true);
+      return;
+    }
+
+    if (isTextInput) return;
+
+    // --- Presentation Mode: Ctrl+Shift+P ---
+    if (e.key.toLowerCase() === 'p' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+      e.preventDefault();
+      setIsPresentationMode((prev) => !prev);
       return;
     }
 
     if (!canEdit) return;
-    if (isTextInput) return;
 
     const selectedNode = nodes.find((n) => n.selected);
 
@@ -788,7 +1170,7 @@ interface CanvasInnerProps {
         id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         type: 'mindmap' as const,
         position: { x: n.position.x + offset, y: n.position.y + offset },
-        data: { label: n.data.label, color: n.data.color },
+        data: { ...n.data, _autoEdit: undefined },
       }));
       setNodes((nds) => [
         ...nds.map((nd) => ({ ...nd, selected: false })),
@@ -816,7 +1198,7 @@ interface CanvasInnerProps {
           id: newId,
           type: 'mindmap',
           position: { x: source.position.x + 30, y: source.position.y + 30 },
-          data: { label: source.data.label, color: source.data.color },
+          data: { ...source.data, _autoEdit: undefined },
         };
         return [
           ...nds.map((n) => ({ ...n, selected: false })),
@@ -933,42 +1315,80 @@ interface CanvasInnerProps {
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
-      {/* Title bar */}
-      <MapTitle
-        mapId={mapId}
-        initialTitle={title}
-        canRename={role === 'owner'}
-        ownerToken={role === 'owner' ? token : null}
-      />
+      {isSearchOpen && (
+        <div 
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-white rounded-xl shadow-xl border border-slate-200 px-4 py-2 flex items-center gap-2"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search nodes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            className="w-48 text-sm outline-none text-slate-800"
+          />
+          <button 
+            type="button"
+            onClick={closeSearch}
+            className="text-slate-400 hover:text-slate-600 font-bold text-xs px-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {!isPresentationMode && (
+        <MapTitle
+          mapId={mapId}
+          initialTitle={title}
+          canRename={role === 'owner'}
+          ownerToken={role === 'owner' ? token : null}
+        />
+      )}
 
-      <Toolbar
-        canEdit={canEdit}
-        isOwner={role === 'owner'}
-        onAddNode={handleAddNode}
-        onDeleteSelected={handleDeleteSelected}
-        onShare={() => setShowSharePanel(true)}
-        onExportPng={handleExportPng}
-        onExportPdf={handleExportPdf}
-        onExportJson={handleExportJson}
-        saveStatus={saveStatus}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-      />
+      {!isPresentationMode && (
+        <Toolbar
+          canEdit={canEdit}
+          isOwner={role === 'owner'}
+          onAddNode={handleAddNode}
+          onDeleteSelected={handleDeleteSelected}
+          onShare={() => setShowSharePanel(true)}
+          onExportPng={handleExportPng}
+          onExportPdf={handleExportPdf}
+          onExportJson={handleExportJson}
+          saveStatus={saveStatus}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          isPresentationMode={isPresentationMode}
+          onTogglePresentation={() => setIsPresentationMode((p) => !p)}
+        />
+      )}
+
+      {isPresentationMode && (
+        <button
+          onClick={() => setIsPresentationMode(false)}
+          className="fixed top-4 right-4 z-50 bg-[#4B5694] text-white rounded-lg px-3 py-2 text-sm shadow-md hover:bg-opacity-90 transition-colors"
+        >
+          Exit Presentation ✕
+        </button>
+      )}
 
       <div className="flex-1 relative" ref={flowWrapperRef} onDoubleClick={handleCanvasDoubleClick}>
         <ReactFlow<MindMapNode, MindMapEdge>
-          nodes={nodes}
+          nodes={displayNodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={canEdit ? onConnect : undefined}
           onNodeDragStart={canEdit ? () => pushSnapshot() : undefined}
           nodeTypes={nodeTypes}
-          nodesDraggable={!readOnly}
-          nodesConnectable={!readOnly}
-          elementsSelectable={!readOnly}
+          edgeTypes={edgeTypes}
+          nodesDraggable={!isCanvasReadOnly}
+          nodesConnectable={!isCanvasReadOnly}
+          elementsSelectable={!isCanvasReadOnly}
           zoomOnScroll
           panOnDrag
           defaultEdgeOptions={{ type: 'smoothstep' }}
@@ -1006,7 +1426,7 @@ interface CanvasInnerProps {
       </div>
 
       {/* Share panel — owner only */}
-      {showSharePanel && role === 'owner' && (
+      {showSharePanel && role === 'owner' && !isPresentationMode && (
         <SharePanel
           mapId={mapId}
           viewToken={viewToken}

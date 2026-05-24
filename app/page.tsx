@@ -9,6 +9,89 @@ interface OwnedMap {
   ownerToken: string;
   title: string;
   updatedAt: string;
+  viewToken: string;
+  thumbnail?: string;
+}
+
+// ── Inline Title Component ────────────────────────────────────────────────
+function InlineRenameTitle({
+  mapId,
+  ownerToken,
+  initialTitle,
+  onRenameOptimistic,
+}: {
+  mapId: string;
+  ownerToken: string;
+  initialTitle: string;
+  onRenameOptimistic: (id: string, newTitle: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(initialTitle);
+
+  useEffect(() => {
+    setTitle(initialTitle);
+  }, [initialTitle]);
+
+  async function save() {
+    setEditing(false);
+    const newTitle = title.trim() || 'Untitled Map';
+    setTitle(newTitle);
+    if (newTitle === initialTitle) return;
+
+    // Optimistic update
+    onRenameOptimistic(mapId, newTitle);
+
+    try {
+      const client = createTokenClient(ownerToken);
+      const { error } = await client
+        .from('mindmaps')
+        .update({ title: newTitle, updated_at: new Date().toISOString() })
+        .eq('id', mapId)
+        .eq('owner_token', ownerToken);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Failed to rename map:', err);
+      // Revert on error
+      setTitle(initialTitle);
+      onRenameOptimistic(mapId, initialTitle);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      save();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setTitle(initialTitle);
+      setEditing(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={save}
+        onKeyDown={handleKeyDown}
+        className="w-full bg-[#1a2150] text-[#EAE0CF] font-semibold text-lg border border-[#4B5694] rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-[#7288AE] mb-1"
+      />
+    );
+  }
+
+  return (
+    <h3
+      onClick={() => setEditing(true)}
+      className="font-semibold text-[#EAE0CF] truncate mb-1 text-lg cursor-text hover:text-white transition-colors"
+      title="Click to rename"
+    >
+      {title}
+    </h3>
+  );
 }
 
 /**
@@ -53,16 +136,20 @@ export default function HomePage() {
           const client = createTokenClient(ownerToken);
           const { data, error } = await client
             .from('mindmaps')
-            .select('title, updated_at')
+            .select('title, updated_at, view_token')
             .eq('id', id)
             .single();
 
           if (!error && data) {
+            const thumbnail = localStorage.getItem(`mindmap_thumb_${id}`) || undefined;
+
             results.push({
               id,
               ownerToken,
               title: data.title,
               updatedAt: data.updated_at,
+              viewToken: data.view_token,
+              thumbnail,
             });
           } else {
             // Row deleted from Supabase — clean up the orphaned localStorage key
@@ -150,6 +237,12 @@ export default function HomePage() {
     }
   }
 
+  const handleRenameOptimistic = useCallback((id: string, newTitle: string) => {
+    setMaps((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, title: newTitle } : m))
+    );
+  }, []);
+
   // ── Format ISO date for display ───────────────────────────────────────
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr);
@@ -219,30 +312,57 @@ export default function HomePage() {
             {maps.map((map) => (
               <div
                 key={map.id}
-                className="rounded-xl bg-[#111844] border border-[#4B5694]/30 p-5 shadow-lg hover:shadow-xl transition-all hover:border-[#4B5694]"
+                className="flex flex-col rounded-xl bg-[#111844] border border-[#4B5694]/30 shadow-lg hover:shadow-xl transition-all hover:border-[#4B5694] overflow-hidden"
               >
-                <h3 className="font-semibold text-[#EAE0CF] truncate mb-1 text-lg">
-                  {map.title}
-                </h3>
-                <p className="text-xs text-[#7288AE] mb-5">
-                  Updated {formatDate(map.updatedAt)}
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() =>
-                      router.push(`/map/${map.id}?owner=${map.ownerToken}`)
-                    }
-                    className="flex-1 rounded-lg bg-[#4B5694] px-3 py-2 text-xs font-medium text-white hover:bg-opacity-80 transition-colors shadow-sm"
-                  >
-                    Open
-                  </button>
-                  <button
-                    onClick={() => handleDelete(map.id, map.ownerToken)}
-                    disabled={deletingId === map.id}
-                    className="rounded-lg border border-red-500/30 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                  >
-                    {deletingId === map.id ? 'Deleting…' : 'Delete'}
-                  </button>
+                {map.thumbnail ? (
+                  <img
+                    src={map.thumbnail}
+                    alt=""
+                    className="w-full h-[120px] object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-[120px] bg-[#111844] border-b border-[#4B5694]/30 flex items-center justify-center shrink-0">
+                    <span className="text-[#4B5694] text-xs font-medium opacity-50">No Preview</span>
+                  </div>
+                )}
+
+                <div className="p-5 flex flex-col flex-1">
+                  <InlineRenameTitle
+                    mapId={map.id}
+                    ownerToken={map.ownerToken}
+                    initialTitle={map.title}
+                    onRenameOptimistic={handleRenameOptimistic}
+                  />
+                  <p className="text-xs text-[#7288AE] mb-5">
+                    Updated {formatDate(map.updatedAt)}
+                  </p>
+                  <div className="flex gap-2 mt-auto">
+                    <button
+                      onClick={() =>
+                        router.push(`/map/${map.id}?owner=${map.ownerToken}`)
+                      }
+                      className="flex-1 rounded-lg bg-[#4B5694] px-3 py-2 text-xs font-medium text-white hover:bg-opacity-80 transition-colors shadow-sm flex items-center justify-center gap-1"
+                    >
+                      Open &rarr;
+                    </button>
+                    <button
+                      onClick={() =>
+                        window.open(`/map/${map.id}?view=${map.viewToken}`, '_blank')
+                      }
+                      className="rounded-lg bg-[#1a2150] border border-[#4B5694]/50 px-3 py-2 text-xs font-medium text-[#EAE0CF] hover:bg-[#4B5694]/30 transition-colors shadow-sm flex items-center justify-center gap-1"
+                      title="Preview as Viewer"
+                    >
+                      Preview 🔍
+                    </button>
+                    <button
+                      onClick={() => handleDelete(map.id, map.ownerToken)}
+                      disabled={deletingId === map.id}
+                      className="rounded-lg border border-red-500/30 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                      title="Delete Map"
+                    >
+                      {deletingId === map.id ? '...' : '🗑'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
