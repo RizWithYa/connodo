@@ -52,10 +52,19 @@ export type MindMapEdge = Edge;
 type Snapshot = { nodes: MindMapNode[]; edges: MindMapEdge[] };
 
 // ---------------------------------------------------------------------------
-// Context — quick-add handler passed from CanvasInner to node components
+// Types & Context — quick-add direction + handler contexts
 // ---------------------------------------------------------------------------
 
-const QuickAddContext = createContext<((sourceId: string) => void) | null>(null);
+type QuickAddDirection = 'right' | 'left' | 'top' | 'bottom';
+
+const DIRECTION_OFFSETS: Record<QuickAddDirection, { x: number; y: number; sourceHandle: string; targetHandle: string }> = {
+  right: { x: 250, y: 0, sourceHandle: 'source-right', targetHandle: 'target-left' },
+  left: { x: -250, y: 0, sourceHandle: 'source-left', targetHandle: 'target-right' },
+  bottom: { x: 0, y: 120, sourceHandle: 'source-bottom', targetHandle: 'target-top' },
+  top: { x: 0, y: -120, sourceHandle: 'source-top', targetHandle: 'target-bottom' },
+};
+
+const QuickAddContext = createContext<((sourceId: string, direction: QuickAddDirection) => void) | null>(null);
 const UndoRedoContext = createContext<(() => void) | null>(null);
 
 // ---------------------------------------------------------------------------
@@ -78,12 +87,12 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
 
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
   const showMiniToolbar = selected && !editing;
+  const showControls = hovered || selected;
 
   // Auto-enter edit mode for nodes created via quick-add
   useEffect(() => {
     if (data._autoEdit) {
       setEditing(true);
-      // Clear the flag so it doesn't re-trigger
       setNodes((nds) =>
         nds.map((n) =>
           n.id === id ? { ...n, data: { ...n.data, _autoEdit: undefined } } : n
@@ -116,10 +125,10 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
     setEditing(true);
   }
 
-  function handleQuickAddClick(e: React.MouseEvent) {
+  function handleQuickAddDir(e: React.MouseEvent, direction: QuickAddDirection) {
     e.stopPropagation();
     e.preventDefault();
-    onQuickAdd?.(id);
+    onQuickAdd?.(id, direction);
   }
 
   function handleDeleteThis(e: React.MouseEvent) {
@@ -151,6 +160,10 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
 
   const label = typeof data.label === 'string' ? data.label : 'Node';
 
+  const handleDotStyle = showControls
+    ? '!w-1.5 !h-1.5 !bg-slate-400 !border-slate-400 !rounded-full !min-w-0 !min-h-0'
+    : '!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0';
+
   return (
     <div
       onDoubleClick={handleDoubleClick}
@@ -162,12 +175,15 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
       ].join(' ')}
       style={{ minWidth: 80, backgroundColor: bgColor }}
     >
-      {/* Target handle — left side (incoming edges) */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!w-2 !h-2 !bg-slate-300 !border-slate-400"
-      />
+      {/* Connection handles — 4 positions × (source + target), backward-compat order */}
+      <Handle type="target" position={Position.Left} id="target-left" className={handleDotStyle} />
+      <Handle type="source" position={Position.Right} id="source-right" className={handleDotStyle} />
+      <Handle type="target" position={Position.Top} id="target-top" className={handleDotStyle} />
+      <Handle type="source" position={Position.Top} id="source-top" className={handleDotStyle} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" className={handleDotStyle} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" className={handleDotStyle} />
+      <Handle type="target" position={Position.Right} id="target-right" className={handleDotStyle} />
+      <Handle type="source" position={Position.Left} id="source-left" className={handleDotStyle} />
 
       <NodeEditor
         value={label}
@@ -176,25 +192,17 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
         onEditingChange={setEditing}
         readOnly={false}
       />
+
+      {/* Mini toolbar — above node, on select (not editing) */}
       {showMiniToolbar && (
         <div
           className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 flex items-center gap-1 px-2 py-1.5 bg-white rounded-lg shadow-md border border-slate-200 z-10"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            onClick={handleDeleteThis}
-            className="p-1 rounded hover:bg-red-50 hover:text-red-600 transition-colors text-slate-500"
-            title="Delete node"
-          >
+          <button type="button" onClick={handleDeleteThis} className="p-1 rounded hover:bg-red-50 hover:text-red-600 transition-colors text-slate-500" title="Delete node">
             <span className="text-sm">🗑</span>
           </button>
-          <button
-            type="button"
-            onClick={handleDuplicate}
-            className="p-1 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors text-slate-500"
-            title="Duplicate node (Ctrl+D)"
-          >
+          <button type="button" onClick={handleDuplicate} className="p-1 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors text-slate-500" title="Duplicate node (Ctrl+D)">
             <span className="text-sm">📋</span>
           </button>
           <div className="w-px h-4 bg-slate-200 mx-0.5" />
@@ -202,10 +210,7 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
             <button
               key={c}
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleColorChange(c);
-              }}
+              onClick={(e) => { e.stopPropagation(); handleColorChange(c); }}
               className={[
                 'w-4 h-4 rounded-full border transition-transform hover:scale-125',
                 c === bgColor ? 'border-blue-500 ring-1 ring-blue-400' : 'border-slate-300',
@@ -217,27 +222,15 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
         </div>
       )}
 
-      {/* Source handle — right side, styled as "+" quick-add button */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!w-5 !h-5 !bg-slate-800 !border-2 !border-white !rounded-full !right-[-10px]"
-        style={{
-          opacity: hovered || selected ? 1 : 0,
-          transition: 'opacity 150ms',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-        onClick={handleQuickAddClick}
-      >
-        <span
-          className="text-white text-xs font-bold leading-none pointer-events-none select-none"
-          style={{ fontSize: 12 }}
-        >
-          +
-        </span>
-      </Handle>
+      {/* Quick-add "+" buttons — 4 directions, on hover/select */}
+      {showControls && (
+        <>
+          <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handleQuickAddDir(e, 'right')} className="absolute right-[-22px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10" title="Add node right">+</button>
+          <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handleQuickAddDir(e, 'left')} className="absolute left-[-22px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10" title="Add node left">+</button>
+          <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handleQuickAddDir(e, 'bottom')} className="absolute bottom-[-22px] left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10" title="Add node below">+</button>
+          <button type="button" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => handleQuickAddDir(e, 'top')} className="absolute top-[-22px] left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center hover:bg-blue-600 transition-colors z-10" title="Add node above">+</button>
+        </>
+      )}
     </div>
   );
 }
@@ -251,24 +244,22 @@ function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
   const label = typeof data.label === 'string' ? data.label : 'Node';
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
 
+  const hiddenHandle = '!w-0 !h-0 !bg-transparent !border-0 !min-w-0 !min-h-0';
+
   return (
     <div
       className="rounded-xl border-2 border-slate-200 shadow-sm cursor-default"
       style={{ minWidth: 80, backgroundColor: bgColor }}
     >
-      {/* Target handle — left side (incoming edges) */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!w-2 !h-2 !bg-slate-300 !border-slate-400"
-      />
+      <Handle type="target" position={Position.Left} id="target-left" className={hiddenHandle} />
+      <Handle type="source" position={Position.Right} id="source-right" className={hiddenHandle} />
+      <Handle type="target" position={Position.Top} id="target-top" className={hiddenHandle} />
+      <Handle type="source" position={Position.Top} id="source-top" className={hiddenHandle} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" className={hiddenHandle} />
+      <Handle type="source" position={Position.Bottom} id="source-bottom" className={hiddenHandle} />
+      <Handle type="target" position={Position.Right} id="target-right" className={hiddenHandle} />
+      <Handle type="source" position={Position.Left} id="source-left" className={hiddenHandle} />
       <NodeEditor value={label} readOnly />
-      {/* Source handle — right side (for edge rendering, hidden) */}
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!w-2 !h-2 !bg-slate-300 !border-slate-400"
-      />
     </div>
   );
 }
@@ -419,9 +410,15 @@ interface CanvasInnerProps {
           type: 'mindmap' as const,
         }));
         const rawEdges = (data.edges ?? []) as MindMapEdge[];
+        // Migrate edges from single-handle era: add default handle IDs
+        const migratedEdges = rawEdges.map((e) => ({
+          ...e,
+          sourceHandle: e.sourceHandle ?? 'source-right',
+          targetHandle: e.targetHandle ?? 'target-left',
+        }));
 
         setNodes(rawNodes);
-        setEdges(rawEdges);
+        setEdges(migratedEdges);
 
         if (data.title) setTitle(data.title as string);
 
@@ -607,9 +604,10 @@ interface CanvasInnerProps {
   // Quick-add — "+" button on node creates child node + edge
   // -------------------------------------------------------------------------
   const handleQuickAdd = useCallback(
-    (sourceId: string) => {
+    (sourceId: string, direction: QuickAddDirection) => {
       pushSnapshot();
       const newId = `node-${Date.now()}`;
+      const offsets = DIRECTION_OFFSETS[direction];
 
       setNodes((nds) => {
         const sourceNode = nds.find((n) => n.id === sourceId);
@@ -619,8 +617,8 @@ interface CanvasInnerProps {
           id: newId,
           type: 'mindmap',
           position: {
-            x: sourceNode.position.x + 250,
-            y: sourceNode.position.y,
+            x: sourceNode.position.x + offsets.x,
+            y: sourceNode.position.y + offsets.y,
           },
           data: { label: 'New Node', _autoEdit: true },
         };
@@ -633,12 +631,14 @@ interface CanvasInnerProps {
         {
           id: `edge-${sourceId}-${newId}`,
           source: sourceId,
+          sourceHandle: offsets.sourceHandle,
           target: newId,
+          targetHandle: offsets.targetHandle,
           type: 'smoothstep',
         },
       ]);
     },
-    []
+    [pushSnapshot]
   );
 
   // -------------------------------------------------------------------------
@@ -863,7 +863,9 @@ interface CanvasInnerProps {
         {
           id: `edge-${selectedNode.id}-${childId}`,
           source: selectedNode.id,
+          sourceHandle: 'source-right',
           target: childId,
+          targetHandle: 'target-left',
           type: 'smoothstep',
         },
       ]);
@@ -893,7 +895,9 @@ interface CanvasInnerProps {
         {
           id: `edge-${selectedNode.id}-${siblingId}`,
           source: selectedNode.id,
+          sourceHandle: 'source-bottom',
           target: siblingId,
+          targetHandle: 'target-top',
           type: 'smoothstep',
         },
       ]);
