@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, createTokenClient, onAuthStateChange } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { TEMPLATES } from '@/lib/templates';
 import type { TemplateData } from '@/lib/templates';
-
+import TemplateDropdown from '@/components/TemplateDropdown';
 interface OwnedMap {
   id: string;
   ownerToken: string;
@@ -126,6 +127,7 @@ export default function HomePage() {
   const [migrated, setMigrated] = useState(false);
   const isLoggedIn = !!session;
   const [showTemplates, setShowTemplates] = useState(false);
+  const templateBtnRef = useRef<HTMLButtonElement>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   // Close templates dropdown on click outside
   useEffect(() => {
@@ -452,8 +454,9 @@ export default function HomePage() {
               {creating ? 'Creating…' : '+ Create New Map'}
             </button>
 
-            <div className="relative">
+            <div>
               <button
+                ref={templateBtnRef}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowTemplates(!showTemplates);
@@ -464,31 +467,19 @@ export default function HomePage() {
                 New from Template ▼
               </button>
               {showTemplates && (
-                <div className="absolute top-full left-0 mt-2 bg-mindmap-bg-primary border border-mindmap-border/30 rounded-lg p-2 z-50 min-w-[220px] shadow-2xl max-h-[80vh] overflow-y-auto">
-                  {Object.entries(TEMPLATES).map(([key, tmpl]) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        setShowTemplates(false);
-                        handleCreate(tmpl);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded hover:bg-mindmap-accent/30 transition-colors duration-150 flex flex-col gap-0.5 group"
-                    >
-                      <div className="text-mindmap-text-primary text-sm font-medium group-hover:text-white transition-colors">
-                        {tmpl.label}
-                      </div>
-                      <div className="text-mindmap-text-muted text-xs group-hover:text-[#93a5cf] transition-colors">
-                        {tmpl.description}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <TemplateDropdown
+                  triggerEl={templateBtnRef.current}
+                  onSelectTemplate={(tmpl) => {
+                    setShowTemplates(false);
+                    handleCreate(tmpl);
+                  }}
+                />
               )}
             </div>
-          </div>
           {createError && (
             <p className="text-red-400 text-sm text-center mt-2">{createError}</p>
           )}
+        </div>
         </div>
       </section>
 

@@ -267,7 +267,7 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
       {/* Mini toolbar — above node, on select (not editing) */}
       {showMiniToolbar && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 flex items-center gap-1 px-2 py-1.5 bg-white rounded-lg shadow-md border border-slate-200 z-10"
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 flex items-center gap-1 px-2 py-1.5 bg-white dark:bg-[#1e2a4a] rounded-lg shadow-md border border-slate-200 dark:border-slate-600 z-10"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button type="button" onClick={handleDeleteThis} className="p-1 rounded hover:bg-red-50 hover:text-red-600 transition-colors text-slate-500" title="Delete node">
@@ -474,7 +474,7 @@ function MindMapEdgeEditable(props: EdgeProps<MindMapEdge>) {
         >
           {selected && (
             <div
-              className="flex bg-white shadow-md border border-slate-200 rounded-md p-0.5 gap-0.5"
+              className="flex bg-white dark:bg-[#1e2a4a] shadow-md border border-slate-200 dark:border-slate-600 rounded-md p-0.5 gap-0.5"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <button onClick={() => setEdgeStyle('solid')} className={`px-2 py-0.5 text-xs font-bold rounded ${!strokeStyle || strokeStyle === 'solid' ? 'bg-slate-100 text-blue-600' : 'hover:bg-slate-50 text-slate-500'}`} title="Solid">—</button>
@@ -486,7 +486,7 @@ function MindMapEdgeEditable(props: EdgeProps<MindMapEdge>) {
           {selected ? (
             <input
               placeholder="Edge label..."
-              className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-xs text-center shadow-sm outline-none focus:ring-1 focus:ring-blue-400"
+              className="bg-white dark:bg-[#1e2a4a] dark:text-slate-100 border border-slate-300 dark:border-slate-600 rounded px-1.5 py-0.5 text-xs text-center shadow-sm outline-none focus:ring-1 focus:ring-blue-400"
               style={{ width: Math.max(80, localLabel.length * 8 + 16) }}
               value={localLabel}
               onChange={(e) => setLocalLabel(e.target.value)}
@@ -495,7 +495,7 @@ function MindMapEdgeEditable(props: EdgeProps<MindMapEdge>) {
               onMouseDown={(e) => e.stopPropagation()}
             />
           ) : localLabel ? (
-            <div className="bg-white/90 px-1.5 py-0.5 rounded text-xs font-medium text-slate-600 shadow-sm border border-slate-100/50">
+            <div className="bg-white/90 dark:bg-[#1e2a4a]/90 px-1.5 py-0.5 rounded text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm border border-slate-100/50 dark:border-slate-600/50">
               {localLabel}
             </div>
           ) : null}
@@ -538,7 +538,7 @@ function MindMapEdgeReadOnly(props: EdgeProps<MindMapEdge>) {
             }}
             className="flex flex-col items-center gap-1.5"
           >
-            <div className="bg-white/90 px-1.5 py-0.5 rounded text-xs font-medium text-slate-600 shadow-sm border border-slate-100/50">
+            <div className="bg-white/90 dark:bg-[#1e2a4a]/90 px-1.5 py-0.5 rounded text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm border border-slate-100/50 dark:border-slate-600/50">
               {currentLabel}
             </div>
           </div>
@@ -652,7 +652,8 @@ interface CanvasInnerProps {
   const [showComments, setShowComments] = useState(false);
   const [commentMode, setCommentMode] = useState(false);
   const [authorName, setAuthorName] = useState('');
-
+  const [commentHint, setCommentHint] = useState(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Get session user name for comments
   useEffect(() => {
     getSession().then((s) => {
@@ -1307,7 +1308,8 @@ interface CanvasInnerProps {
   // -------------------------------------------------------------------------
   if (loading) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-white">
+      <div className="w-full h-full flex items-center justify-center bg-white dark:bg-[#1e2a4a]">
+        <p className="text-slate-400 dark:text-slate-300 text-sm animate-pulse">Loading map…</p>
         <p className="text-slate-400 text-sm animate-pulse">Loading map…</p>
       </div>
     );
@@ -1315,8 +1317,9 @@ interface CanvasInnerProps {
 
   if (error) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-white">
-        <p className="text-red-500 text-sm font-medium">{error}</p>
+      <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-white dark:bg-[#1e2a4a]">
+        <p className="text-red-500 dark:text-red-400 text-sm font-medium">{error}</p>
+        <p className="text-slate-400 dark:text-slate-300 text-xs">Check that your link is correct and try again.</p>
         <p className="text-slate-400 text-xs">Check that your link is correct and try again.</p>
       </div>
     );
@@ -1332,7 +1335,7 @@ interface CanvasInnerProps {
     >
       {isSearchOpen && (
         <div 
-          className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-white rounded-xl shadow-xl border border-slate-200 px-4 py-2 flex items-center gap-2"
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-white dark:bg-[#1e2a4a] rounded-xl shadow-xl border border-slate-200 dark:border-slate-600 px-4 py-2 flex items-center gap-2"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <input
@@ -1380,7 +1383,25 @@ interface CanvasInnerProps {
           isPresentationMode={isPresentationMode}
           onTogglePresentation={() => setIsPresentationMode((p) => !p)}
           commentMode={commentMode}
-          onToggleCommentMode={() => setCommentMode((p) => !p)}
+          onToggleCommentMode={() => {
+            setCommentMode((prev) => {
+              const next = !prev;
+              if (next) {
+                const selNode = selectedNodeId;
+                if (selNode) {
+                  setShowComments(true);
+                } else {
+                  setCommentHint(true);
+                  if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+                  hintTimerRef.current = setTimeout(() => setCommentHint(false), 3000);
+                }
+              } else {
+                setShowComments(false);
+                setCommentHint(false);
+              }
+              return next;
+            });
+          }}
         />
       )}
 
@@ -1436,7 +1457,7 @@ interface CanvasInnerProps {
           </div>
         )}
 
-        <div className="absolute top-3 left-3 z-10 px-2 py-1 rounded-md bg-white/80 border border-slate-200 text-xs text-slate-500 backdrop-blur-sm pointer-events-none">
+        <div className="absolute top-3 left-3 z-10 px-2 py-1 rounded-md bg-white/80 dark:bg-[#1e2a4a]/80 border border-slate-200 dark:border-slate-600 text-xs text-slate-500 dark:text-slate-300 backdrop-blur-sm pointer-events-none">
           {role === 'owner' && '👑 Owner'}
           {role === 'editor' && '✏️ Editor'}
           {role === 'viewer' && '👁 View only'}
@@ -1465,6 +1486,13 @@ interface CanvasInnerProps {
           onClose={() => { setShowComments(false); setSelectedNodeId(null); }}
           authorName={authorName}
         />
+      )}
+
+      {/* Comment mode hint */}
+      {commentHint && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 dark:bg-[#1e2a4a] text-white px-6 py-3 rounded-xl shadow-lg text-sm animate-pulse">
+          Click any node to view comments
+        </div>
       )}
     </div>
     </QuickAddContext.Provider>
