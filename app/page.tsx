@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase, createTokenClient } from '@/lib/supabase';
+import type { Session } from '@supabase/supabase-js';
+import { supabase, createTokenClient, onAuthStateChange } from '@/lib/supabase';
+import Navbar from '@/components/Navbar';
 
 interface OwnedMap {
   id: string;
@@ -19,11 +21,13 @@ function InlineRenameTitle({
   ownerToken,
   initialTitle,
   onRenameOptimistic,
+  session,
 }: {
   mapId: string;
   ownerToken: string;
   initialTitle: string;
   onRenameOptimistic: (id: string, newTitle: string) => void;
+  session: Session | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(initialTitle);
@@ -42,14 +46,23 @@ function InlineRenameTitle({
     onRenameOptimistic(mapId, newTitle);
 
     try {
-      const client = createTokenClient(ownerToken);
-      const { error } = await client
-        .from('mindmaps')
-        .update({ title: newTitle, updated_at: new Date().toISOString() })
-        .eq('id', mapId)
-        .eq('owner_token', ownerToken);
-
-      if (error) throw error;
+      if (session) {
+        // Authenticated: use supabase directly (RLS uses auth.uid())
+        const { error } = await supabase
+          .from('mindmaps')
+          .update({ title: newTitle, updated_at: new Date().toISOString() })
+          .eq('id', mapId);
+        if (error) throw error;
+      } else {
+        // Anon: use token client
+        const client = createTokenClient(ownerToken);
+        const { error } = await client
+          .from('mindmaps')
+          .update({ title: newTitle, updated_at: new Date().toISOString() })
+          .eq('id', mapId)
+          .eq('owner_token', ownerToken);
+        if (error) throw error;
+      }
     } catch (err) {
       console.error('Failed to rename map:', err);
       // Revert on error
@@ -107,69 +120,137 @@ export default function HomePage() {
   const [maps, setMaps] = useState<OwnedMap[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [migrated, setMigrated] = useState(false);
+  const isLoggedIn = !!session;
 
-  // ── Load owned maps from localStorage + Supabase ──────────────────────
-  const loadMaps = useCallback(async () => {
-    setLoading(true);
-    try {
-      const entries: { id: string; ownerToken: string }[] = [];
+  // Auth state listener
+  useEffect(() => {
+    const { data: { subscription } } = onAuthStateChange((newSession) => {
+      setSession(newSession);
+    });
+    return () => { subscription.unsubscribe(); };
+  }, []);
+
+  // Migration: localStorage maps to Supabase user_id
+  useEffect(() => {
+    if (!isLoggedIn || migrated) return;
+
+    async function migrateLocalMaps() {
+      const userId = session!.user.id;
+      const keysToMigrate: { id: string; ownerToken: string }[] = [];
+
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('mindmap_owned_')) {
           const id = key.replace('mindmap_owned_', '');
           const ownerToken = localStorage.getItem(key);
-          if (ownerToken) {
-            entries.push({ id, ownerToken });
-          }
+          if (ownerToken) keysToMigrate.push({ id, ownerToken });
         }
       }
 
-      if (entries.length === 0) {
-        setMaps([]);
-        setLoading(false);
-        return;
-      }
-
-      const results: OwnedMap[] = [];
-      await Promise.all(
-        entries.map(async ({ id, ownerToken }) => {
+      for (const { id, ownerToken } of keysToMigrate) {
+        try {
           const client = createTokenClient(ownerToken);
           const { data, error } = await client
             .from('mindmaps')
-            .select('title, updated_at, view_token')
+            .select('user_id')
             .eq('id', id)
             .single();
 
-          if (!error && data) {
-            const thumbnail = localStorage.getItem(`mindmap_thumb_${id}`) || undefined;
-
-            results.push({
-              id,
-              ownerToken,
-              title: data.title,
-              updatedAt: data.updated_at,
-              viewToken: data.view_token,
-              thumbnail,
-            });
-          } else {
-            // Row deleted from Supabase — clean up the orphaned localStorage key
-            localStorage.removeItem(`mindmap_owned_${id}`);
+          if (!error && data && data.user_id === null) {
+            await supabase
+              .from('mindmaps')
+              .update({ user_id: userId })
+              .eq('id', id)
+              .eq('owner_token', ownerToken);
+            localStorage.removeItem('mindmap_owned_' + id);
+          } else if (error || !data) {
+            localStorage.removeItem('mindmap_owned_' + id);
           }
-        })
-      );
+        } catch (e) {
+          console.error('Migration failed for map', id, e);
+        }
+      }
 
-      // Most recently updated first
-      results.sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      );
-      setMaps(results);
+      setMigrated(true);
+    }
+
+    migrateLocalMaps();
+  }, [isLoggedIn, migrated, session]);
+
+  // Load owned maps from localStorage + Supabase
+  const loadMaps = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (session) {
+        // AUTHENTICATED: fetch by user_id
+        const { data, error } = await supabase
+          .from('mindmaps')
+          .select('id, title, updated_at, view_token, owner_token')
+          .eq('user_id', session.user.id)
+          .order('updated_at', { ascending: false });
+
+        if (!error && data) {
+          const results: OwnedMap[] = data.map((row) => ({
+            id: row.id,
+            ownerToken: row.owner_token,
+            title: row.title,
+            updatedAt: row.updated_at,
+            viewToken: row.view_token,
+            thumbnail: localStorage.getItem('mindmap_thumb_' + row.id) || undefined,
+          }));
+          setMaps(results);
+        } else {
+          console.error('Failed to load authenticated maps:', error);
+          setMaps([]);
+        }
+      } else {
+        // ANON: localStorage-based
+        const entries: { id: string; ownerToken: string }[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('mindmap_owned_')) {
+            const id = key.replace('mindmap_owned_', '');
+            const ownerToken = localStorage.getItem(key);
+            if (ownerToken) entries.push({ id, ownerToken });
+          }
+        }
+
+        if (entries.length === 0) {
+          setMaps([]);
+          setLoading(false);
+          return;
+        }
+
+        const results: OwnedMap[] = [];
+        await Promise.all(
+          entries.map(async ({ id, ownerToken }) => {
+            const client = createTokenClient(ownerToken);
+            const { data, error } = await client
+              .from('mindmaps')
+              .select('title, updated_at, view_token')
+              .eq('id', id)
+              .single();
+
+            if (!error && data) {
+              const thumbnail = localStorage.getItem('mindmap_thumb_' + id) || undefined;
+              results.push({ id, ownerToken, title: data.title, updatedAt: data.updated_at, viewToken: data.view_token, thumbnail });
+            } else {
+              localStorage.removeItem('mindmap_owned_' + id);
+            }
+          })
+        );
+
+        results.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        setMaps(results);
+      }
     } catch (e) {
       console.error('Failed to load maps:', e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     loadMaps();
@@ -195,6 +276,7 @@ export default function HomePage() {
           owner_token: newOwnerToken,
           edit_token: newEditToken,
           view_token: newViewToken,
+          user_id: session?.user?.id ?? null,
         });
 
       if (error) {
@@ -203,8 +285,10 @@ export default function HomePage() {
         return;
       }
 
-      localStorage.setItem(`mindmap_owned_${newId}`, newOwnerToken);
-      router.push(`/map/${newId}?owner=${newOwnerToken}`);
+      if (!session) {
+        localStorage.setItem('mindmap_owned_' + newId, newOwnerToken);
+      }
+      router.push('/map/' + newId + '?owner=' + newOwnerToken);
     } catch (e) {
       console.error('Create exception:', e);
       setCreateError('Unexpected error. Please try again.');
@@ -213,22 +297,27 @@ export default function HomePage() {
     }
   }
 
-  // ── Delete a map from Supabase + localStorage ─────────────────────────
+  // Delete a map from Supabase + localStorage
   async function handleDelete(id: string, ownerToken: string) {
     setDeletingId(id);
     try {
-      const client = createTokenClient(ownerToken);
-      const { error } = await client
-        .from('mindmaps')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.error('Delete failed:', error);
-        return;
+      if (session) {
+        // Authenticated: use supabase directly (RLS checks auth.uid())
+        const { error } = await supabase
+          .from('mindmaps')
+          .delete()
+          .eq('id', id);
+        if (error) { console.error('Delete failed:', error); return; }
+      } else {
+        // Anon: use token client
+        const client = createTokenClient(ownerToken);
+        const { error } = await client
+          .from('mindmaps')
+          .delete()
+          .eq('id', id);
+        if (error) { console.error('Delete failed:', error); return; }
+        localStorage.removeItem('mindmap_owned_' + id);
       }
-
-      localStorage.removeItem(`mindmap_owned_${id}`);
       setMaps((prev) => prev.filter((m) => m.id !== id));
     } catch (e) {
       console.error('Delete exception:', e);
@@ -257,6 +346,8 @@ export default function HomePage() {
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
+    <>
+      <Navbar />
     <main className="min-h-screen bg-[#1a2150]">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-[#111844] py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
@@ -332,6 +423,7 @@ export default function HomePage() {
                     ownerToken={map.ownerToken}
                     initialTitle={map.title}
                     onRenameOptimistic={handleRenameOptimistic}
+                    session={session}
                   />
                   <p className="text-xs text-[#7288AE] mb-5">
                     Updated {formatDate(map.updatedAt)}
@@ -370,5 +462,6 @@ export default function HomePage() {
         )}
       </section>
     </main>
+    </>
   );
 }

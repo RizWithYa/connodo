@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -55,4 +56,32 @@ export interface FlowEdge {
   target: string;
   type?: string;
   [key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Auth helpers
+// ---------------------------------------------------------------------------
+
+export async function getSession(): Promise<Session | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session ?? null;
+}
+
+export async function signInWithGoogle() {
+  return supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: process.env.NEXT_PUBLIC_SITE_URL + '/auth/callback',
+    },
+  });
+}
+
+export async function signOut() {
+  return supabase.auth.signOut();
+}
+
+export function onAuthStateChange(callback: (session: Session | null) => void) {
+  return supabase.auth.onAuthStateChange((_event, session) => {
+    callback(session);
+  });
 }

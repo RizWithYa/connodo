@@ -1,4 +1,5 @@
 import MindMapCanvas from '@/components/MindMapCanvas';
+import Navbar from '@/components/Navbar';
 import type { AccessRole } from '@/lib/tokenUtils';
 
 /**
@@ -44,6 +45,8 @@ export default async function MapPage({
   // and upgrade to 'owner' if a stored token is found.
 
   return (
+    <>
+      <Navbar />
     <main className="w-screen h-screen overflow-hidden bg-slate-50">
       <MindMapCanvas
         mapId={mapId}
@@ -52,5 +55,6 @@ export default async function MapPage({
         tokenColumn={tokenColumn}
       />
     </main>
+    </>
   );
 }
