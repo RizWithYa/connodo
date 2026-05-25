@@ -32,7 +32,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { supabase, createTokenClient } from '@/lib/supabase';
+import { supabase, createTokenClient, getSession } from '@/lib/supabase';
 import { useDebounce } from '@/lib/useDebounce';
 import NodeEditor from '@/components/NodeEditor';
 import Toolbar from '@/components/Toolbar';
@@ -650,7 +650,17 @@ interface CanvasInnerProps {
   // Comment panel state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showComments, setShowComments] = useState(false);
+  const [commentMode, setCommentMode] = useState(false);
+  const [authorName, setAuthorName] = useState('');
 
+  // Get session user name for comments
+  useEffect(() => {
+    getSession().then((s) => {
+      if (s?.user?.user_metadata?.full_name) {
+        setAuthorName(s.user.user_metadata.full_name);
+      }
+    });
+  }, []);
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
       searchInputRef.current.focus();
@@ -1369,6 +1379,8 @@ interface CanvasInnerProps {
           canRedo={canRedo}
           isPresentationMode={isPresentationMode}
           onTogglePresentation={() => setIsPresentationMode((p) => !p)}
+          commentMode={commentMode}
+          onToggleCommentMode={() => setCommentMode((p) => !p)}
         />
       )}
 
@@ -1387,7 +1399,7 @@ interface CanvasInnerProps {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => { setSelectedNodeId(node.id); setShowComments(true); }}
+          onNodeClick={commentMode ? (_, node) => { setSelectedNodeId(node.id); setShowComments(true); } : undefined}
           onConnect={canEdit ? onConnect : undefined}
           onNodeDragStart={canEdit ? () => pushSnapshot() : undefined}
           nodeTypes={nodeTypes}
@@ -1451,7 +1463,7 @@ interface CanvasInnerProps {
           token={token}
           role={role}
           onClose={() => { setShowComments(false); setSelectedNodeId(null); }}
-          authorName={''}
+          authorName={authorName}
         />
       )}
     </div>

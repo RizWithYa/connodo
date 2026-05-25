@@ -23,74 +23,45 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
-    --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
 
-    --mindmap-bg-primary: 228 30% 18%;
-    --mindmap-bg-secondary: 229 35% 21%;
-    --mindmap-text-primary: 43 38% 89%;
-    --mindmap-text-muted: 221 23% 55%;
-    --mindmap-accent: 231 28% 45%;
-    --mindmap-border: 231 28% 45%;
-  }
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-
-    --mindmap-bg-primary: 228 30% 18%;
-    --mindmap-bg-secondary: 229 35% 21%;
-    --mindmap-text-primary: 43 38% 89%;
-    --mindmap-text-muted: 221 23% 55%;
-    --mindmap-accent: 231 28% 45%;
-    --mindmap-border: 231 28% 45%;
-  }
-
-  .light {
+    /* Light mode (default) — mindmap colors */
     --mindmap-bg-primary: 210 20% 97%;
     --mindmap-bg-secondary: 0 0% 100%;
     --mindmap-text-primary: 222 47% 11%;
     --mindmap-text-muted: 215 16% 47%;
     --mindmap-accent: 231 28% 45%;
     --mindmap-border: 214 32% 91%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* Dark mode — mindmap colors */
+    --mindmap-bg-primary: 228 30% 18%;
+    --mindmap-bg-secondary: 229 35% 21%;
+    --mindmap-text-primary: 43 38% 89%;
+    --mindmap-text-muted: 221 23% 55%;
+    --mindmap-accent: 231 28% 45%;
+    --mindmap-border: 231 28% 45%;
   }
 
   * {

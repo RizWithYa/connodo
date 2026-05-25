@@ -464,7 +464,7 @@ export default function HomePage() {
                 New from Template ▼
               </button>
               {showTemplates && (
-                <div className="absolute top-full left-0 mt-2 bg-mindmap-bg-primary border border-mindmap-border/30 rounded-lg p-2 z-10 min-w-[220px] shadow-2xl">
+                <div className="absolute top-full left-0 mt-2 bg-mindmap-bg-primary border border-mindmap-border/30 rounded-lg p-2 z-50 min-w-[220px] shadow-2xl max-h-[80vh] overflow-y-auto">
                   {Object.entries(TEMPLATES).map(([key, tmpl]) => (
                     <button
                       key={key}

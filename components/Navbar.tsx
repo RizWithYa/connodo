@@ -34,7 +34,7 @@ export default function Navbar() {
             className="w-8 h-8 flex items-center justify-center rounded-full text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors"
             title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            {theme === 'dark' ? '🌙' : '☀️'}
           </button>
 
           {loading ? null : session ? (

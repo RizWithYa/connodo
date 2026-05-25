@@ -18,6 +18,8 @@ interface ToolbarProps {
   canRedo?: boolean;
   isPresentationMode?: boolean;
   onTogglePresentation?: () => void;
+  commentMode?: boolean;
+  onToggleCommentMode?: () => void;
 }
 
 export default function Toolbar({
@@ -36,6 +38,8 @@ export default function Toolbar({
   canRedo = false,
   isPresentationMode = false,
   onTogglePresentation,
+  commentMode = false,
+  onToggleCommentMode,
 }: ToolbarProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
@@ -117,6 +121,15 @@ export default function Toolbar({
           {saveStatus === 'error' && 'Save failed'}
         </span>
       )}
+
+      {/* Comment Mode Toggle */}
+      <button
+        onClick={onToggleCommentMode}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 transition-colors"
+        title={commentMode ? 'Exit comment mode' : 'Comment mode'}
+      >
+        {commentMode ? '💬 Comments ✓' : '💬 Comments'}
+      </button>
 
       {/* Presentation Mode Toggle */}
       <button
