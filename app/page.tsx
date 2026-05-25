@@ -473,6 +473,7 @@ export default function HomePage() {
                     setShowTemplates(false);
                     handleCreate(tmpl);
                   }}
+                  onClose={() => setShowTemplates(false)}
                 />
               )}
             </div>

@@ -1,15 +1,27 @@
 'use client';
 
 import { createPortal } from 'react-dom';
+import { useEffect } from 'react';
 import { TEMPLATES } from '@/lib/templates';
 import type { TemplateData } from '@/lib/templates';
 
 interface Props {
   triggerEl: HTMLElement | null;
   onSelectTemplate: (tmpl: TemplateData) => void;
+  onClose: () => void;
 }
 
-export default function TemplateDropdown({ triggerEl, onSelectTemplate }: Props) {
+export default function TemplateDropdown({ triggerEl, onSelectTemplate, onClose }: Props) {
+  // Close on scroll or resize
+  useEffect(() => {
+    window.addEventListener('scroll', onClose, true);
+    window.addEventListener('resize', onClose);
+    return () => {
+      window.removeEventListener('scroll', onClose, true);
+      window.removeEventListener('resize', onClose);
+    };
+  }, [onClose]);
+
   if (!triggerEl) return null;
 
   const rect = triggerEl.getBoundingClientRect();
