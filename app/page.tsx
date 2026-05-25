@@ -464,7 +464,7 @@ export default function HomePage() {
                 disabled={creating}
                 className="rounded-xl bg-mindmap-accent px-6 py-3 text-sm font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5 flex items-center gap-1.5"
               >
-                New from Template ▼
+                New from Template {showTemplates ? '▲' : '▼'}
               </button>
               {showTemplates && (
                 <TemplateDropdown
