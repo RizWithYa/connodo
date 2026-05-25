@@ -348,7 +348,7 @@ export default function HomePage() {
   return (
     <>
       <Navbar />
-    <main className="min-h-screen bg-[#1a2150]">
+    <main className="min-h-screen bg-[#1a2150] pt-14">
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-[#111844] py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
         {/* Subtle animated blobs background */}
