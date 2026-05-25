@@ -3,13 +3,9 @@
 import { useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { signInWithGoogle, signOut, onAuthStateChange } from '@/lib/supabase';
-import { useTheme } from '@/lib/theme';
-
 export default function Navbar() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const { theme, toggleTheme } = useTheme();
-
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange((newSession) => {
       setSession(newSession);
@@ -27,16 +23,8 @@ export default function Navbar() {
         {/* Left: App name */}
         <span className="text-mindmap-text-primary font-bold text-lg">MindMap</span>
 
-        {/* Right: Theme + Auth controls */}
+        {/* Right: Auth controls */}
         <div className="flex items-center gap-3">
-          <button
-            onClick={toggleTheme}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors"
-            title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-          >
-            {theme === 'dark' ? '🌙' : '☀️'}
-          </button>
-
           {loading ? null : session ? (
             <>
               <img
