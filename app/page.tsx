@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, createTokenClient, onAuthStateChange } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
+import { TEMPLATES } from '@/lib/templates';
+import type { TemplateData } from '@/lib/templates';
 
 interface OwnedMap {
   id: string;
@@ -91,7 +93,7 @@ function InlineRenameTitle({
         onChange={(e) => setTitle(e.target.value)}
         onBlur={save}
         onKeyDown={handleKeyDown}
-        className="w-full bg-[#1a2150] text-[#EAE0CF] font-semibold text-lg border border-[#4B5694] rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-[#7288AE] mb-1"
+        className="w-full bg-mindmap-bg-secondary text-mindmap-text-primary font-semibold text-lg border border-mindmap-accent rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-mindmap-text-muted mb-1"
       />
     );
   }
@@ -99,7 +101,7 @@ function InlineRenameTitle({
   return (
     <h3
       onClick={() => setEditing(true)}
-      className="font-semibold text-[#EAE0CF] truncate mb-1 text-lg cursor-text hover:text-white transition-colors"
+      className="font-semibold text-mindmap-text-primary truncate mb-1 text-lg cursor-text hover:text-white transition-colors"
       title="Click to rename"
     >
       {title}
@@ -123,7 +125,22 @@ export default function HomePage() {
   const [session, setSession] = useState<Session | null>(null);
   const [migrated, setMigrated] = useState(false);
   const isLoggedIn = !!session;
-
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  // Close templates dropdown on click outside
+  useEffect(() => {
+    if (!showTemplates) return;
+    function handleGlobalClick() {
+      setShowTemplates(false);
+    }
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handleGlobalClick);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleGlobalClick);
+    };
+  }, [showTemplates]);
   // Auth state listener
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange((newSession) => {
@@ -257,7 +274,7 @@ export default function HomePage() {
   }, [loadMaps]);
 
   // ── Create a new map ──────────────────────────────────────────────────
-  async function handleCreate() {
+  async function handleCreate(template?: TemplateData) {
     setCreating(true);
     setCreateError(null);
 
@@ -272,11 +289,12 @@ export default function HomePage() {
         .from('mindmaps')
         .insert({
           id: newId,
-          title: 'Untitled Map',
+          title: template ? template.label : 'Untitled Map',
           owner_token: newOwnerToken,
           edit_token: newEditToken,
           view_token: newViewToken,
           user_id: session?.user?.id ?? null,
+          ...(template ? { nodes: template.nodes, edges: template.edges } : {}),
         });
 
       if (error) {
@@ -326,6 +344,62 @@ export default function HomePage() {
     }
   }
 
+  // Duplicate a map
+  async function handleDuplicate(mapId: string, ownerToken: string) {
+    setDuplicatingId(mapId);
+    try {
+      const client = session ? supabase : createTokenClient(ownerToken);
+      const { data, error } = await client
+        .from('mindmaps')
+        .select('title, nodes, edges')
+        .eq('id', mapId)
+        .single();
+
+      if (error || !data) {
+        console.error('Failed to fetch map for duplication:', error);
+        return;
+      }
+
+      const newId = crypto.randomUUID();
+      const newOwnerToken = crypto.randomUUID();
+      const newEditToken = crypto.randomUUID();
+      const newViewToken = crypto.randomUUID();
+
+      const insertData: Record<string, unknown> = {
+        id: newId,
+        title: data.title + ' (copy)',
+        nodes: data.nodes,
+        edges: data.edges,
+        owner_token: newOwnerToken,
+        edit_token: newEditToken,
+        view_token: newViewToken,
+      };
+
+      if (session) {
+        insertData.user_id = session.user.id;
+      }
+
+      const { error: insertError } = await supabase
+        .from('mindmaps')
+        .insert(insertData);
+
+      if (insertError) {
+        console.error('Duplicate failed:', insertError);
+        return;
+      }
+
+      if (!session) {
+        localStorage.setItem('mindmap_owned_' + newId, newOwnerToken);
+      }
+
+      loadMaps();
+    } catch (e) {
+      console.error('Duplicate exception:', e);
+    } finally {
+      setDuplicatingId(null);
+    }
+  }
+
   const handleRenameOptimistic = useCallback((id: string, newTitle: string) => {
     setMaps((prev) =>
       prev.map((m) => (m.id === id ? { ...m, title: newTitle } : m))
@@ -348,35 +422,69 @@ export default function HomePage() {
   return (
     <>
       <Navbar />
-    <main className="min-h-screen bg-[#1a2150] pt-14">
+    <main className="min-h-screen bg-mindmap-bg-secondary pt-14">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-[#111844] py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
+      <section className="relative overflow-hidden bg-mindmap-bg-primary py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
         {/* Subtle animated blobs background */}
         <div className="absolute top-0 left-1/2 w-full max-w-5xl -translate-x-1/2 h-full overflow-hidden pointer-events-none opacity-40">
-          <div className="absolute top-10 left-10 w-64 h-64 bg-[#4B5694] rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob" />
-          <div className="absolute top-0 right-20 w-72 h-72 bg-[#7288AE] rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
-          <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-[#1a2150] rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
+          <div className="absolute top-10 left-10 w-64 h-64 bg-mindmap-accent rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob" />
+          <div className="absolute top-0 right-20 w-72 h-72 bg-mindmap-text-muted rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
+          <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-mindmap-bg-secondary rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
         </div>
 
         <div className="relative z-10 text-center max-w-2xl mx-auto flex flex-col items-center gap-6">
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-[#EAE0CF]">
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-mindmap-text-primary">
             MindMap
           </h1>
           <h2 className="text-3xl sm:text-4xl font-bold text-white">
             Think freely. Share instantly.
           </h2>
-          <p className="text-lg sm:text-xl text-[#7288AE] max-w-xl mx-auto">
+          <p className="text-lg sm:text-xl text-mindmap-text-muted max-w-xl mx-auto">
             Create beautiful mindmaps and share them with anyone — no account required.
           </p>
 
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
             <button
-              onClick={handleCreate}
+              onClick={() => handleCreate()}
               disabled={creating}
-              className="rounded-xl bg-[#4B5694] px-8 py-4 text-base font-semibold text-white hover:bg-opacity-80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+              className="rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
             >
               {creating ? 'Creating…' : '+ Create New Map'}
             </button>
+
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowTemplates(!showTemplates);
+                }}
+                disabled={creating}
+                className="rounded-xl bg-mindmap-accent px-6 py-3 text-sm font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5 flex items-center gap-1.5"
+              >
+                New from Template ▼
+              </button>
+              {showTemplates && (
+                <div className="absolute top-full left-0 mt-2 bg-mindmap-bg-primary border border-mindmap-border/30 rounded-lg p-2 z-10 min-w-[220px] shadow-2xl">
+                  {Object.entries(TEMPLATES).map(([key, tmpl]) => (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setShowTemplates(false);
+                        handleCreate(tmpl);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded hover:bg-mindmap-accent/30 transition-colors duration-150 flex flex-col gap-0.5 group"
+                    >
+                      <div className="text-mindmap-text-primary text-sm font-medium group-hover:text-white transition-colors">
+                        {tmpl.label}
+                      </div>
+                      <div className="text-mindmap-text-muted text-xs group-hover:text-[#93a5cf] transition-colors">
+                        {tmpl.description}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           {createError && (
             <p className="text-red-400 text-sm text-center mt-2">{createError}</p>
@@ -386,15 +494,15 @@ export default function HomePage() {
 
       {/* Map List Section */}
       <section className="max-w-5xl mx-auto p-8">
-        <h2 className="text-2xl font-bold text-[#EAE0CF] mb-6">Your Maps</h2>
+        <h2 className="text-2xl font-bold text-mindmap-text-primary mb-6">Your Maps</h2>
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <p className="text-[#7288AE] text-sm animate-pulse">Loading your maps…</p>
+            <p className="text-mindmap-text-muted text-sm animate-pulse">Loading your maps…</p>
           </div>
         ) : maps.length === 0 ? (
           <div className="flex justify-center py-12">
-            <p className="text-[#7288AE] text-sm">
+            <p className="text-mindmap-text-muted text-sm">
               No maps yet. Create your first one!
             </p>
           </div>
@@ -402,8 +510,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {maps.map((map) => (
               <div
-                key={map.id}
-                className="flex flex-col rounded-xl bg-[#111844] border border-[#4B5694]/30 shadow-lg hover:shadow-xl transition-all hover:border-[#4B5694] overflow-hidden"
+                className="flex flex-col rounded-xl bg-mindmap-bg-primary border border-mindmap-border/30 shadow-lg hover:shadow-xl transition-all hover:border-mindmap-accent overflow-hidden"
               >
                 {map.thumbnail ? (
                   <img
@@ -412,8 +519,8 @@ export default function HomePage() {
                     className="w-full h-[120px] object-cover"
                   />
                 ) : (
-                  <div className="w-full h-[120px] bg-[#111844] border-b border-[#4B5694]/30 flex items-center justify-center shrink-0">
-                    <span className="text-[#4B5694] text-xs font-medium opacity-50">No Preview</span>
+                  <div className="w-full h-[120px] bg-mindmap-bg-primary border-b border-mindmap-border/30 flex items-center justify-center shrink-0">
+                    <span className="text-mindmap-accent text-xs font-medium opacity-50">No Preview</span>
                   </div>
                 )}
 
@@ -425,7 +532,7 @@ export default function HomePage() {
                     onRenameOptimistic={handleRenameOptimistic}
                     session={session}
                   />
-                  <p className="text-xs text-[#7288AE] mb-5">
+                  <p className="text-xs text-mindmap-text-muted mb-5">
                     Updated {formatDate(map.updatedAt)}
                   </p>
                   <div className="flex gap-2 mt-auto">
@@ -433,7 +540,7 @@ export default function HomePage() {
                       onClick={() =>
                         router.push(`/map/${map.id}?owner=${map.ownerToken}`)
                       }
-                      className="flex-1 rounded-lg bg-[#4B5694] px-3 py-2 text-xs font-medium text-white hover:bg-opacity-80 transition-colors shadow-sm flex items-center justify-center gap-1"
+                      className="flex-1 rounded-lg bg-mindmap-accent px-3 py-2 text-xs font-medium text-white hover:bg-mindmap-accent/80 transition-colors shadow-sm flex items-center justify-center gap-1"
                     >
                       Open &rarr;
                     </button>
@@ -441,10 +548,18 @@ export default function HomePage() {
                       onClick={() =>
                         window.open(`/map/${map.id}?view=${map.viewToken}`, '_blank')
                       }
-                      className="rounded-lg bg-[#1a2150] border border-[#4B5694]/50 px-3 py-2 text-xs font-medium text-[#EAE0CF] hover:bg-[#4B5694]/30 transition-colors shadow-sm flex items-center justify-center gap-1"
+                      className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-2 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm flex items-center justify-center gap-1"
                       title="Preview as Viewer"
                     >
                       Preview 🔍
+                    </button>
+                    <button
+                      onClick={() => handleDuplicate(map.id, map.ownerToken)}
+                      disabled={duplicatingId === map.id}
+                      className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-1.5 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm disabled:opacity-50"
+                      title="Duplicate Map"
+                    >
+                      {duplicatingId === map.id ? '...' : '📋'}
                     </button>
                     <button
                       onClick={() => handleDelete(map.id, map.ownerToken)}

@@ -43,6 +43,14 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        mindmap: {
+          'bg-primary': 'hsl(var(--mindmap-bg-primary))',
+          'bg-secondary': 'hsl(var(--mindmap-bg-secondary))',
+          'text-primary': 'hsl(var(--mindmap-text-primary))',
+          'text-muted': 'hsl(var(--mindmap-text-muted))',
+          accent: 'hsl(var(--mindmap-accent))',
+          border: 'hsl(var(--mindmap-border))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

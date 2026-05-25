@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { signInWithGoogle, signOut, onAuthStateChange } from '@/lib/supabase';
+import { useTheme } from '@/lib/theme';
 
 export default function Navbar() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange((newSession) => {
@@ -20,13 +22,21 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-[#111844] border-b border-[#4B5694]/30">
+    <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-mindmap-bg-primary border-b border-mindmap-border/30">
       <div className="flex items-center justify-between h-14 px-6">
         {/* Left: App name */}
-        <span className="text-[#EAE0CF] font-bold text-lg">MindMap</span>
+        <span className="text-mindmap-text-primary font-bold text-lg">MindMap</span>
 
-        {/* Right: Auth controls */}
+        {/* Right: Theme + Auth controls */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="w-8 h-8 flex items-center justify-center rounded-full text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors"
+            title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+
           {loading ? null : session ? (
             <>
               <img
@@ -34,12 +44,12 @@ export default function Navbar() {
                 alt=""
                 className="w-7 h-7 rounded-full"
               />
-              <span className="text-[#EAE0CF] text-sm">
+              <span className="text-mindmap-text-primary text-sm">
                 {session.user.user_metadata.full_name}
               </span>
               <button
                 onClick={() => signOut()}
-                className="text-sm text-[#7288AE] hover:text-white transition-colors"
+                className="text-sm text-mindmap-text-muted hover:text-white transition-colors"
               >
                 Sign out
               </button>
@@ -47,7 +57,7 @@ export default function Navbar() {
           ) : (
             <button
               onClick={() => signInWithGoogle()}
-              className="bg-[#4B5694] text-white rounded-lg px-4 py-2 text-sm hover:bg-opacity-80 transition-colors"
+              className="bg-mindmap-accent text-white rounded-lg px-4 py-2 text-sm hover:bg-mindmap-accent/80 transition-colors"
             >
               Sign in with Google
             </button>

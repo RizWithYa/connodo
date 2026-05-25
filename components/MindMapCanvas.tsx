@@ -40,6 +40,7 @@ import SharePanel from '@/components/SharePanel';
 import MapTitle from '@/components/MapTitle';
 import { exportAsPng, exportAsPdf, exportAsJson } from '@/lib/exportUtils';
 import type { AccessRole } from '@/lib/tokenUtils';
+import CommentPanel from '@/components/CommentPanel';
 
 // ---------------------------------------------------------------------------
 // Types — MindMap-specific node data
@@ -645,6 +646,10 @@ interface CanvasInnerProps {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Comment panel state
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [showComments, setShowComments] = useState(false);
 
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
@@ -1370,7 +1375,7 @@ interface CanvasInnerProps {
       {isPresentationMode && (
         <button
           onClick={() => setIsPresentationMode(false)}
-          className="fixed top-4 right-4 z-50 bg-[#4B5694] text-white rounded-lg px-3 py-2 text-sm shadow-md hover:bg-opacity-90 transition-colors"
+          className="fixed top-4 right-4 z-50 bg-mindmap-accent text-white rounded-lg px-3 py-2 text-sm shadow-md hover:bg-mindmap-accent/90 transition-colors"
         >
           Exit Presentation ✕
         </button>
@@ -1382,6 +1387,7 @@ interface CanvasInnerProps {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeClick={(_, node) => { setSelectedNodeId(node.id); setShowComments(true); }}
           onConnect={canEdit ? onConnect : undefined}
           onNodeDragStart={canEdit ? () => pushSnapshot() : undefined}
           nodeTypes={nodeTypes}
@@ -1434,6 +1440,18 @@ interface CanvasInnerProps {
           ownerToken={ownerToken}
           onClose={() => setShowSharePanel(false)}
           onDelete={handleDeleteMap}
+        />
+      )}
+
+      {/* Comment panel */}
+      {showComments && selectedNodeId && token && (
+        <CommentPanel
+          nodeId={selectedNodeId}
+          mapId={mapId}
+          token={token}
+          role={role}
+          onClose={() => { setShowComments(false); setSelectedNodeId(null); }}
+          authorName={''}
         />
       )}
     </div>
