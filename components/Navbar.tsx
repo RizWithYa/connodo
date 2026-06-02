@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import Link from 'next/link';
+
 import { signInWithGoogle, signOut, onAuthStateChange } from '@/lib/supabase';
 export default function Navbar() {
   const [session, setSession] = useState<Session | null>(null);
@@ -21,7 +23,9 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-mindmap-bg-primary border-b border-mindmap-border/30">
       <div className="flex items-center justify-between h-14 px-6">
         {/* Left: App name */}
-        <span className="text-mindmap-text-primary font-bold text-lg">MindMap</span>
+        <Link href="/" className="text-mindmap-text-primary font-bold text-lg hover:text-white transition-colors">
+          MindMap
+        </Link>
 
         {/* Right: Auth controls */}
         <div className="flex items-center gap-3">
