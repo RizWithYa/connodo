@@ -124,7 +124,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [migrated, setMigrated] = useState(false);
   const isLoggedIn = !!session;
   const [showTemplates, setShowTemplates] = useState(false);
   const templateBtnRef = useRef<HTMLButtonElement>(null);
@@ -151,52 +150,36 @@ export default function HomePage() {
     return () => { subscription.unsubscribe(); };
   }, []);
 
-  // Migration: localStorage maps to Supabase user_id
+  // Migration: old localStorage keys (mindmap_owned_* → connodo_owned_*)
   useEffect(() => {
-    if (!isLoggedIn || migrated) return;
+    if (typeof window === 'undefined') return;
 
-    async function migrateLocalMaps() {
-      const userId = session!.user.id;
-      const keysToMigrate: { id: string; ownerToken: string }[] = [];
-
+    async function migrateOldKeys() {
+      // Copy old mindmap_owned_* → connodo_owned_*
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('connodo_owned_')) {
-          const id = key.replace('connodo_owned_', '');
-          const ownerToken = localStorage.getItem(key);
-          if (ownerToken) keysToMigrate.push({ id, ownerToken });
-        }
-      }
-
-      for (const { id, ownerToken } of keysToMigrate) {
-        try {
-          const client = createTokenClient(ownerToken);
-          const { data, error } = await client
-            .from('mindmaps')
-            .select('user_id')
-            .eq('id', id)
-            .single();
-
-          if (!error && data && data.user_id === null) {
-            await supabase
-              .from('mindmaps')
-              .update({ user_id: userId })
-              .eq('id', id)
-              .eq('owner_token', ownerToken);
-            localStorage.removeItem('connodo_owned_' + id);
-          } else if (error || !data) {
-            localStorage.removeItem('connodo_owned_' + id);
+        if (key && key.startsWith('mindmap_owned_')) {
+          const newKey = 'connodo_owned_' + key.slice('mindmap_owned_'.length);
+          if (!localStorage.getItem(newKey)) {
+            const val = localStorage.getItem(key);
+            if (val) localStorage.setItem(newKey, val);
           }
-        } catch (e) {
-          console.error('Migration failed for map', id, e);
+          localStorage.removeItem(key);
+        }
+        // Copy old mindmap_thumb_* → connodo_thumb_*
+        if (key && key.startsWith('mindmap_thumb_')) {
+          const newKey = 'connodo_thumb_' + key.slice('mindmap_thumb_'.length);
+          if (!localStorage.getItem(newKey)) {
+            const val = localStorage.getItem(key);
+            if (val) localStorage.setItem(newKey, val);
+          }
+          localStorage.removeItem(key);
         }
       }
-
-      setMigrated(true);
     }
 
-    migrateLocalMaps();
-  }, [isLoggedIn, migrated, session]);
+    migrateOldKeys();
+  }, []);
 
   // Load owned maps from localStorage + Supabase
   const loadMaps = useCallback(async () => {
@@ -295,7 +278,6 @@ export default function HomePage() {
           owner_token: newOwnerToken,
           edit_token: newEditToken,
           view_token: newViewToken,
-          user_id: session?.user?.id ?? null,
           ...(template ? { nodes: template.nodes, edges: template.edges } : {}),
         });
 
