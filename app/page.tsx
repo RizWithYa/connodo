@@ -129,110 +129,6 @@ export default function HomePage() {
   const [showTemplates, setShowTemplates] = useState(false);
   const templateBtnRef = useRef<HTMLButtonElement>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
-  // Close templates dropdown on click outside
-  useEffect(() => {
-    if (!showTemplates) return;
-    function handleGlobalClick() {
-      setShowTemplates(false);
-    }
-    const timer = setTimeout(() => {
-      window.addEventListener('click', handleGlobalClick);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('click', handleGlobalClick);
-    };
-  }, [showTemplates]);
-  // Auth state listener
-  useEffect(() => {
-    const { data: { subscription } } = onAuthStateChange((newSession) => {
-      setSession(newSession);
-      if (!newSession) {
-        setMigrated(false);
-      }
-    });
-    return () => { subscription.unsubscribe(); };
-  }, []);
-
-  // 1. One-time migration of "connodo" keys back to "mindmap" keys in localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const keysToMigrate: { key: string; newKey: string; value: string }[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) {
-          if (key.startsWith('connodo_owned_')) {
-            const newKey = 'mindmap_owned_' + key.substring('connodo_owned_'.length);
-            const val = localStorage.getItem(key);
-            if (val) keysToMigrate.push({ key, newKey, value: val });
-          } else if (key.startsWith('connodo_thumb_')) {
-            const newKey = 'mindmap_thumb_' + key.substring('connodo_thumb_'.length);
-            const val = localStorage.getItem(key);
-            if (val) keysToMigrate.push({ key, newKey, value: val });
-          }
-        }
-      }
-      for (const { key, newKey, value } of keysToMigrate) {
-        localStorage.setItem(newKey, value);
-        localStorage.removeItem(key);
-      }
-    } catch (e) {
-      console.error('Failed to migrate Connodo localStorage keys to MindMap:', e);
-    }
-  }, []);
-
-  // 2. Migration of anonymous local maps to Supabase user account on login
-  useEffect(() => {
-    if (!isLoggedIn || migrated || !session?.user?.id) return;
-
-    async function migrateLocalMaps() {
-      const userId = session.user.id;
-      const keysToMigrate: { id: string; ownerToken: string }[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('mindmap_owned_')) {
-          const id = key.replace('mindmap_owned_', '');
-          const ownerToken = localStorage.getItem(key);
-          if (ownerToken) keysToMigrate.push({ id, ownerToken });
-        }
-      }
-
-      if (keysToMigrate.length === 0) {
-        setMigrated(true);
-        return;
-      }
-
-      for (const { id, ownerToken } of keysToMigrate) {
-        try {
-          const client = createTokenClient(ownerToken);
-          const { data, error } = await client
-            .from('mindmaps')
-            .select('user_id')
-            .eq('id', id)
-            .single();
-
-          if (!error && data && data.user_id === null) {
-            await supabase
-              .from('mindmaps')
-              .update({ user_id: userId })
-              .eq('id', id)
-              .eq('owner_token', ownerToken);
-            localStorage.removeItem('mindmap_owned_' + id);
-          } else if (error || !data) {
-            localStorage.removeItem('mindmap_owned_' + id);
-          }
-        } catch (e) {
-          console.error('Migration failed for map', id, e);
-        }
-      }
-
-      setMigrated(true);
-      loadMaps();
-    }
-
-    migrateLocalMaps();
-  }, [isLoggedIn, migrated, session, loadMaps]);
 
   // Load owned maps from localStorage + Supabase
   const loadMaps = useCallback(async () => {
@@ -306,6 +202,113 @@ export default function HomePage() {
       setLoading(false);
     }
   }, [session]);
+
+  // Close templates dropdown on click outside
+  useEffect(() => {
+    if (!showTemplates) return;
+    function handleGlobalClick() {
+      setShowTemplates(false);
+    }
+    const timer = setTimeout(() => {
+      window.addEventListener('click', handleGlobalClick);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleGlobalClick);
+    };
+  }, [showTemplates]);
+  // Auth state listener
+  useEffect(() => {
+    const { data: { subscription } } = onAuthStateChange((newSession) => {
+      setSession(newSession);
+      if (!newSession) {
+        setMigrated(false);
+      }
+    });
+    return () => { subscription.unsubscribe(); };
+  }, []);
+
+  // 1. One-time migration of "connodo" keys back to "mindmap" keys in localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const keysToMigrate: { key: string; newKey: string; value: string }[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          if (key.startsWith('connodo_owned_')) {
+            const newKey = 'mindmap_owned_' + key.substring('connodo_owned_'.length);
+            const val = localStorage.getItem(key);
+            if (val) keysToMigrate.push({ key, newKey, value: val });
+          } else if (key.startsWith('connodo_thumb_')) {
+            const newKey = 'mindmap_thumb_' + key.substring('connodo_thumb_'.length);
+            const val = localStorage.getItem(key);
+            if (val) keysToMigrate.push({ key, newKey, value: val });
+          }
+        }
+      }
+      for (const { key, newKey, value } of keysToMigrate) {
+        localStorage.setItem(newKey, value);
+        localStorage.removeItem(key);
+      }
+    } catch (e) {
+      console.error('Failed to migrate Connodo localStorage keys to MindMap:', e);
+    }
+  }, []);
+
+  // 2. Migration of anonymous local maps to Supabase user account on login
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!isLoggedIn || migrated || !userId) return;
+
+    async function migrateLocalMaps() {
+      const keysToMigrate: { id: string; ownerToken: string }[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mindmap_owned_')) {
+          const id = key.replace('mindmap_owned_', '');
+          const ownerToken = localStorage.getItem(key);
+          if (ownerToken) keysToMigrate.push({ id, ownerToken });
+        }
+      }
+
+      if (keysToMigrate.length === 0) {
+        setMigrated(true);
+        return;
+      }
+
+      for (const { id, ownerToken } of keysToMigrate) {
+        try {
+          const client = createTokenClient(ownerToken);
+          const { data, error } = await client
+            .from('mindmaps')
+            .select('user_id')
+            .eq('id', id)
+            .single();
+
+          if (!error && data && data.user_id === null) {
+            await supabase
+              .from('mindmaps')
+              .update({ user_id: userId })
+              .eq('id', id)
+              .eq('owner_token', ownerToken);
+            localStorage.removeItem('mindmap_owned_' + id);
+          } else if (error || !data) {
+            localStorage.removeItem('mindmap_owned_' + id);
+          }
+        } catch (e) {
+          console.error('Migration failed for map', id, e);
+        }
+      }
+
+      setMigrated(true);
+      loadMaps();
+    }
+
+    migrateLocalMaps();
+  }, [isLoggedIn, migrated, session, loadMaps]);
+
+
 
   useEffect(() => {
     loadMaps();
