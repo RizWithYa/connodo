@@ -1,4 +1,4 @@
-import MindMapCanvas from '@/components/MindMapCanvas';
+import ConnodoCanvas from '@/components/ConnodoCanvas';
 import Navbar from '@/components/Navbar';
 import type { AccessRole } from '@/lib/tokenUtils';
 
@@ -6,11 +6,11 @@ import type { AccessRole } from '@/lib/tokenUtils';
  * /map/[id] — Canvas page.
  *
  * This is a Server Component. It reads searchParams (owner/edit/view token)
- * and passes the resolved token info down to the client-side MindMapCanvas.
+ * and passes the resolved token info down to the client-side ConnodoCanvas.
  *
  * Token resolution happens here (server-side) so the canvas gets the correct
  * role immediately without a client-side localStorage read on first paint.
- * localStorage check (returning owner) is handled inside MindMapCanvas on mount.
+ * localStorage check (returning owner) is handled inside ConnodoCanvas on mount.
  */
 export default async function MapPage({
   params,
@@ -41,14 +41,14 @@ export default async function MapPage({
     token = resolvedSearchParams.view;
     tokenColumn = 'view_token';
   }
-  // If no token in URL, MindMapCanvas will check localStorage on mount
+  // If no token in URL, ConnodoCanvas will check localStorage on mount
   // and upgrade to 'owner' if a stored token is found.
 
   return (
     <>
       <Navbar />
     <main className="w-screen h-screen overflow-hidden bg-slate-50 pt-14">
-      <MindMapCanvas
+      <ConnodoCanvas
         mapId={mapId}
         role={role}
         token={token}

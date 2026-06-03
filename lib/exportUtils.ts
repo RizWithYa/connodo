@@ -1,7 +1,7 @@
 /**
  * exportUtils.ts
  *
- * Export helpers for the MindMap canvas.
+ * Export helpers for the Connodo canvas.
  *
  * Supported formats (per spec):
  *   PNG  — html-to-image → blob → download
@@ -25,7 +25,7 @@ import type { FlowNode, FlowEdge } from './supabase';
  */
 export async function exportAsPng(
   canvasElement: HTMLElement,
-  filename = 'mindmap'
+  filename = 'connodo'
 ): Promise<void> {
   const dataUrl = await toPng(canvasElement, {
     backgroundColor: '#ffffff',
@@ -48,7 +48,7 @@ export async function exportAsPng(
  */
 export async function exportAsPdf(
   canvasElement: HTMLElement,
-  filename = 'mindmap'
+  filename = 'connodo'
 ): Promise<void> {
   const dataUrl = await toPng(canvasElement, {
     backgroundColor: '#ffffff',
@@ -76,7 +76,7 @@ export async function exportAsPdf(
 // ---------------------------------------------------------------------------
 
 /**
- * Serializes the current mindmap state to a JSON file and triggers a download.
+ * Serializes the current connodo state to a JSON file and triggers a download.
  *
  * @param title  - Map title
  * @param nodes  - Current React Flow nodes
@@ -87,7 +87,7 @@ export function exportAsJson(
   title: string,
   nodes: FlowNode[],
   edges: FlowEdge[],
-  filename = 'mindmap'
+  filename = 'connodo'
 ): void {
   const payload = JSON.stringify({ title, nodes, edges }, null, 2);
   const blob = new Blob([payload], { type: 'application/json' });

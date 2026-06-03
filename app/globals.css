@@ -25,13 +25,13 @@
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
 
-    /* MindMap colors (Original Dark Theme) */
-    --mindmap-bg-primary: 228 30% 18%;
-    --mindmap-bg-secondary: 229 35% 21%;
-    --mindmap-text-primary: 43 38% 89%;
-    --mindmap-text-muted: 221 23% 55%;
-    --mindmap-accent: 231 28% 45%;
-    --mindmap-border: 231 28% 45%;
+    /* Connodo colors (Original Dark Theme) */
+    --connodo-bg-primary: 228 30% 18%;
+    --connodo-bg-secondary: 229 35% 21%;
+    --connodo-text-primary: 43 38% 89%;
+    --connodo-text-muted: 221 23% 55%;
+    --connodo-accent: 231 28% 45%;
+    --connodo-border: 231 28% 45%;
   }
 
   * {

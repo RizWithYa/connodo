@@ -1,5 +1,5 @@
 -- =============================================================================
--- MindMap — Comments Feature Migration
+-- Connodo — Comments Feature Migration
 -- Run this in Supabase SQL Editor
 -- Safe to re-run: uses IF NOT EXISTS / DROP IF EXISTS
 -- =============================================================================
@@ -9,7 +9,7 @@
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS node_comments (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  map_id     UUID        NOT NULL REFERENCES mindmaps(id) ON DELETE CASCADE,
+  map_id     UUID        NOT NULL REFERENCES Connodos(id) ON DELETE CASCADE,
   node_id    TEXT        NOT NULL,
   text       TEXT        NOT NULL,
   author     TEXT        NOT NULL DEFAULT 'Anonymous',
@@ -27,13 +27,13 @@ GRANT ALL ON TABLE node_comments TO service_role;
 ALTER TABLE node_comments ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
--- 3. RLS Policies (same pattern as mindmaps — USING true, app enforces via filters)
+-- 3. RLS Policies (same pattern as Connodos — USING true, app enforces via filters)
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Allow read comments with valid token" ON node_comments;
 DROP POLICY IF EXISTS "Allow insert comment" ON node_comments;
 DROP POLICY IF EXISTS "Allow delete own comment" ON node_comments;
 
--- SELECT: anyone with a valid mindmap token can read comments
+-- SELECT: anyone with a valid Connodo token can read comments
 CREATE POLICY "Allow read comments with valid token"
   ON node_comments
   FOR SELECT

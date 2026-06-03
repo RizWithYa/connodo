@@ -1,10 +1,10 @@
-# 🗺️ MindMap
+# 🗺️ Connodo
 
 > **Think freely. Share instantly.**
 
-A frictionless, lightweight web-based mind-mapping tool. Create mindmaps and share them with anyone — no account required.
+A frictionless, lightweight web-based mind-mapping tool. Create Connodos and share them with anyone — no account required.
 
-🔗 **Live Demo:** [mindmap-phi-tawny.vercel.app](https://mindmap-phi-tawny.vercel.app/)
+🔗 **Live Demo:** [Connodo-phi-tawny.vercel.app](https://Connodo-phi-tawny.vercel.app/)
 
 ---
 
@@ -79,8 +79,8 @@ A frictionless, lightweight web-based mind-mapping tool. Create mindmaps and sha
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/RizWithYa/mindmap.git
-cd mindmap/mindmap-app
+git clone https://github.com/RizWithYa/Connodo.git
+cd Connodo/Connodo-app
 npm install
 ```
 
@@ -116,7 +116,7 @@ Open [http://localhost:3000](http://localhost:3000/)
 ## 🗄️ Database Schema
 
 ```sql
-CREATE TABLE mindmaps (
+CREATE TABLE Connodos (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title       TEXT NOT NULL DEFAULT 'Untitled Map',
   nodes       JSONB NOT NULL DEFAULT '[]',
@@ -133,12 +133,12 @@ CREATE TABLE mindmaps (
 ## 📁 Project Structure
 
 ```
-mindmap-app/
+Connodo-app/
 ├── app/
 │   ├── page.tsx              ← Homepage + map list
 │   └── map/[id]/page.tsx     ← Canvas page
 ├── components/
-│   ├── MindMapCanvas.tsx     ← React Flow canvas + all logic
+│   ├── ConnodoCanvas.tsx     ← React Flow canvas + all logic
 │   ├── MapTitle.tsx          ← Inline editable title
 │   ├── Toolbar.tsx           ← Controls + export + share
 │   ├── SharePanel.tsx        ← Share links modal
@@ -164,7 +164,7 @@ Every map has 3 tokens generated on creation:
 /map/[id]?view=[token]   → Read-only
 ```
 
-Tokens are verified at the **database level** via Supabase RLS policies using a custom `x-mindmap-token` header. The server never trusts the client alone.
+Tokens are verified at the **database level** via Supabase RLS policies using a custom `x-connodo-token` header. The server never trusts the client alone.
 
 Owner token is stored in `localStorage` so you can always reopen your maps from the homepage.
 
