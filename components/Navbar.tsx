@@ -21,9 +21,7 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-connodo-bg-primary border-b border-connodo-border/30">
       <div className="flex items-center justify-between h-14 px-6">
         {/* Left: App name */}
-        <Link href="/" className="text-mindmap-text-primary font-bold text-lg hover:text-white transition-colors">
-          MindMap
-        </Link>
+        <span className="text-mindmap-text-primary font-bold text-lg">MindMap</span>
 
         {/* Right: Auth controls */}
         <div className="flex items-center gap-3">
