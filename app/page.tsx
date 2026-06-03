@@ -94,7 +94,7 @@ function InlineRenameTitle({
         onChange={(e) => setTitle(e.target.value)}
         onBlur={save}
         onKeyDown={handleKeyDown}
-        className="w-full bg-connodo-bg-secondary text-connodo-text-primary font-semibold text-lg border border-connodo-accent rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-connodo-text-muted mb-1"
+        className="w-full bg-mindmap-bg-secondary text-mindmap-text-primary font-semibold text-lg border border-mindmap-accent rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-mindmap-text-muted mb-1"
       />
     );
   }
@@ -102,7 +102,7 @@ function InlineRenameTitle({
   return (
     <h3
       onClick={() => setEditing(true)}
-      className="font-semibold text-connodo-text-primary truncate mb-1 text-lg cursor-text hover:text-white transition-colors"
+      className="font-semibold text-mindmap-text-primary truncate mb-1 text-lg cursor-text hover:text-white transition-colors"
       title="Click to rename"
     >
       {title}
@@ -113,7 +113,7 @@ function InlineRenameTitle({
 /**
  * Homepage — "Create New Map" button + card grid of previously created maps.
  *
- * Reads localStorage keys matching `connodo_owned_[id]`, fetches metadata
+ * Reads localStorage keys matching `mindmap_owned_[id]`, fetches metadata
  * from Supabase via createTokenClient(owner_token), and renders a card grid.
  */
 export default function HomePage() {
@@ -125,6 +125,7 @@ export default function HomePage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const isLoggedIn = !!session;
+  const [migrated, setMigrated] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const templateBtnRef = useRef<HTMLButtonElement>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
@@ -146,40 +147,92 @@ export default function HomePage() {
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange((newSession) => {
       setSession(newSession);
+      if (!newSession) {
+        setMigrated(false);
+      }
     });
     return () => { subscription.unsubscribe(); };
   }, []);
 
-  // Migration: old localStorage keys (mindmap_owned_* → connodo_owned_*)
+  // 1. One-time migration of "connodo" keys back to "mindmap" keys in localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    try {
+      const keysToMigrate: { key: string; newKey: string; value: string }[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          if (key.startsWith('connodo_owned_')) {
+            const newKey = 'mindmap_owned_' + key.substring('connodo_owned_'.length);
+            const val = localStorage.getItem(key);
+            if (val) keysToMigrate.push({ key, newKey, value: val });
+          } else if (key.startsWith('connodo_thumb_')) {
+            const newKey = 'mindmap_thumb_' + key.substring('connodo_thumb_'.length);
+            const val = localStorage.getItem(key);
+            if (val) keysToMigrate.push({ key, newKey, value: val });
+          }
+        }
+      }
+      for (const { key, newKey, value } of keysToMigrate) {
+        localStorage.setItem(newKey, value);
+        localStorage.removeItem(key);
+      }
+    } catch (e) {
+      console.error('Failed to migrate Connodo localStorage keys to MindMap:', e);
+    }
+  }, []);
 
-    async function migrateOldKeys() {
-      // Copy old mindmap_owned_* → connodo_owned_*
+  // 2. Migration of anonymous local maps to Supabase user account on login
+  useEffect(() => {
+    if (!isLoggedIn || migrated || !session?.user?.id) return;
+
+    async function migrateLocalMaps() {
+      const userId = session.user.id;
+      const keysToMigrate: { id: string; ownerToken: string }[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('mindmap_owned_')) {
-          const newKey = 'connodo_owned_' + key.slice('mindmap_owned_'.length);
-          if (!localStorage.getItem(newKey)) {
-            const val = localStorage.getItem(key);
-            if (val) localStorage.setItem(newKey, val);
-          }
-          localStorage.removeItem(key);
-        }
-        // Copy old mindmap_thumb_* → connodo_thumb_*
-        if (key && key.startsWith('mindmap_thumb_')) {
-          const newKey = 'connodo_thumb_' + key.slice('mindmap_thumb_'.length);
-          if (!localStorage.getItem(newKey)) {
-            const val = localStorage.getItem(key);
-            if (val) localStorage.setItem(newKey, val);
-          }
-          localStorage.removeItem(key);
+          const id = key.replace('mindmap_owned_', '');
+          const ownerToken = localStorage.getItem(key);
+          if (ownerToken) keysToMigrate.push({ id, ownerToken });
         }
       }
+
+      if (keysToMigrate.length === 0) {
+        setMigrated(true);
+        return;
+      }
+
+      for (const { id, ownerToken } of keysToMigrate) {
+        try {
+          const client = createTokenClient(ownerToken);
+          const { data, error } = await client
+            .from('mindmaps')
+            .select('user_id')
+            .eq('id', id)
+            .single();
+
+          if (!error && data && data.user_id === null) {
+            await supabase
+              .from('mindmaps')
+              .update({ user_id: userId })
+              .eq('id', id)
+              .eq('owner_token', ownerToken);
+            localStorage.removeItem('mindmap_owned_' + id);
+          } else if (error || !data) {
+            localStorage.removeItem('mindmap_owned_' + id);
+          }
+        } catch (e) {
+          console.error('Migration failed for map', id, e);
+        }
+      }
+
+      setMigrated(true);
+      loadMaps();
     }
 
-    migrateOldKeys();
-  }, []);
+    migrateLocalMaps();
+  }, [isLoggedIn, migrated, session, loadMaps]);
 
   // Load owned maps from localStorage + Supabase
   const loadMaps = useCallback(async () => {
@@ -200,7 +253,7 @@ export default function HomePage() {
             title: row.title,
             updatedAt: row.updated_at,
             viewToken: row.view_token,
-            thumbnail: localStorage.getItem('connodo_thumb_' + row.id) || undefined,
+            thumbnail: localStorage.getItem('mindmap_thumb_' + row.id) || undefined,
           }));
           setMaps(results);
         } else {
@@ -212,8 +265,8 @@ export default function HomePage() {
         const entries: { id: string; ownerToken: string }[] = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && key.startsWith('connodo_owned_')) {
-            const id = key.replace('connodo_owned_', '');
+          if (key && key.startsWith('mindmap_owned_')) {
+            const id = key.replace('mindmap_owned_', '');
             const ownerToken = localStorage.getItem(key);
             if (ownerToken) entries.push({ id, ownerToken });
           }
@@ -236,10 +289,10 @@ export default function HomePage() {
               .single();
 
             if (!error && data) {
-              const thumbnail = localStorage.getItem('connodo_thumb_' + id) || undefined;
+              const thumbnail = localStorage.getItem('mindmap_thumb_' + id) || undefined;
               results.push({ id, ownerToken, title: data.title, updatedAt: data.updated_at, viewToken: data.view_token, thumbnail });
             } else {
-              localStorage.removeItem('connodo_owned_' + id);
+              localStorage.removeItem('mindmap_owned_' + id);
             }
           })
         );
@@ -288,7 +341,7 @@ export default function HomePage() {
       }
 
       if (!session) {
-        localStorage.setItem('connodo_owned_' + newId, newOwnerToken);
+        localStorage.setItem('mindmap_owned_' + newId, newOwnerToken);
       }
       router.push('/map/' + newId + '?owner=' + newOwnerToken);
     } catch (e) {
@@ -318,7 +371,7 @@ export default function HomePage() {
           .delete()
           .eq('id', id);
         if (error) { console.error('Delete failed:', error); return; }
-        localStorage.removeItem('connodo_owned_' + id);
+        localStorage.removeItem('mindmap_owned_' + id);
       }
       setMaps((prev) => prev.filter((m) => m.id !== id));
     } catch (e) {
@@ -373,7 +426,7 @@ export default function HomePage() {
       }
 
       if (!session) {
-        localStorage.setItem('connodo_owned_' + newId, newOwnerToken);
+        localStorage.setItem('mindmap_owned_' + newId, newOwnerToken);
       }
 
       loadMaps();
@@ -406,34 +459,32 @@ export default function HomePage() {
   return (
     <>
       <Navbar />
-    <main className="min-h-screen bg-connodo-bg-secondary pt-14">
+    <main className="min-h-screen bg-mindmap-bg-secondary pt-14">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-connodo-bg-primary py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
+      <section className="relative overflow-hidden bg-mindmap-bg-primary py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
         {/* Subtle animated blobs background */}
         <div className="absolute top-0 left-1/2 w-full max-w-5xl -translate-x-1/2 h-full overflow-hidden pointer-events-none opacity-40">
-          <div className="absolute top-10 left-10 w-64 h-64 bg-connodo-accent rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob" />
-          <div className="absolute top-0 right-20 w-72 h-72 bg-connodo-text-muted rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
-          <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-connodo-bg-secondary rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
-          <div className="absolute top-0 right-20 w-72 h-72 bg-connodo-text-muted rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
-          <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-connodo-bg-secondary rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
+          <div className="absolute top-10 left-10 w-64 h-64 bg-mindmap-accent rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob" />
+          <div className="absolute top-0 right-20 w-72 h-72 bg-mindmap-text-muted rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
+          <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-mindmap-bg-secondary rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
         </div>
 
         <div className="relative z-10 text-center max-w-2xl mx-auto flex flex-col items-center gap-6">
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-connodo-text-primary">
-            Connodo
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-mindmap-text-primary">
+            MindMap
           </h1>
           <h2 className="text-3xl sm:text-4xl font-bold text-white">
             Think freely. Share instantly.
           </h2>
-          <p className="text-lg sm:text-xl text-connodo-text-muted max-w-xl mx-auto">
-            Create beautiful connodos and share them with anyone — no account required.
+          <p className="text-lg sm:text-xl text-mindmap-text-muted max-w-xl mx-auto">
+            Create beautiful mindmaps and share them with anyone — no account required.
           </p>
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
             <button
               onClick={() => handleCreate()}
               disabled={creating}
-              className="rounded-xl bg-connodo-accent px-8 py-4 text-base font-semibold text-white hover:bg-connodo-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+              className="rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
             >
               {creating ? 'Creating…' : '+ Create New Map'}
             </button>
@@ -446,7 +497,7 @@ export default function HomePage() {
                   setShowTemplates(!showTemplates);
                 }}
                 disabled={creating}
-                className="rounded-xl bg-connodo-accent px-6 py-3 text-sm font-semibold text-white hover:bg-connodo-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5 flex items-center gap-1.5"
+                className="rounded-xl bg-mindmap-accent px-6 py-3 text-sm font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5 flex items-center gap-1.5"
               >
                 New from Template {showTemplates ? '▲' : '▼'}
               </button>
@@ -470,15 +521,15 @@ export default function HomePage() {
 
       {/* Map List Section */}
       <section className="max-w-5xl mx-auto p-8">
-        <h2 className="text-2xl font-bold text-connodo-text-primary mb-6">Your Maps</h2>
+        <h2 className="text-2xl font-bold text-mindmap-text-primary mb-6">Your Maps</h2>
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <p className="text-connodo-text-muted text-sm animate-pulse">Loading your maps…</p>
+            <p className="text-mindmap-text-muted text-sm animate-pulse">Loading your maps…</p>
           </div>
         ) : maps.length === 0 ? (
           <div className="flex justify-center py-12">
-            <p className="text-connodo-text-muted text-sm">
+            <p className="text-mindmap-text-muted text-sm">
               No maps yet. Create your first one!
             </p>
           </div>
@@ -486,7 +537,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {maps.map((map) => (
               <div
-                className="flex flex-col rounded-xl bg-connodo-bg-primary border border-connodo-border/30 shadow-lg hover:shadow-xl transition-all hover:border-connodo-accent overflow-hidden"
+                className="flex flex-col rounded-xl bg-mindmap-bg-primary border border-mindmap-border/30 shadow-lg hover:shadow-xl transition-all hover:border-mindmap-accent overflow-hidden"
               >
                 {map.thumbnail ? (
                   <img
@@ -495,9 +546,8 @@ export default function HomePage() {
                     className="w-full h-[120px] object-cover"
                   />
                 ) : (
-                  <div className="w-full h-[120px] bg-connodo-bg-primary border-b border-connodo-border/30 flex items-center justify-center shrink-0">
-                    <span className="text-connodo-accent text-xs font-medium opacity-50">No Preview</span>
-                    <span className="text-connodo-accent text-xs font-medium opacity-50">No Preview</span>
+                  <div className="w-full h-[120px] bg-mindmap-bg-primary border-b border-mindmap-border/30 flex items-center justify-center shrink-0">
+                    <span className="text-mindmap-accent text-xs font-medium opacity-50">No Preview</span>
                   </div>
                 )}
 
@@ -509,7 +559,7 @@ export default function HomePage() {
                     onRenameOptimistic={handleRenameOptimistic}
                     session={session}
                   />
-                  <p className="text-xs text-connodo-text-muted mb-5">
+                  <p className="text-xs text-mindmap-text-muted mb-5">
                     Updated {formatDate(map.updatedAt)}
                   </p>
                   <div className="flex gap-2 mt-auto">
@@ -517,7 +567,7 @@ export default function HomePage() {
                       onClick={() =>
                         router.push(`/map/${map.id}?owner=${map.ownerToken}`)
                       }
-                      className="flex-1 rounded-lg bg-connodo-accent px-3 py-2 text-xs font-medium text-white hover:bg-connodo-accent/80 transition-colors shadow-sm flex items-center justify-center gap-1"
+                      className="flex-1 rounded-lg bg-mindmap-accent px-3 py-2 text-xs font-medium text-white hover:bg-mindmap-accent/80 transition-colors shadow-sm flex items-center justify-center gap-1"
                     >
                       Open &rarr;
                     </button>
@@ -525,7 +575,7 @@ export default function HomePage() {
                       onClick={() =>
                         window.open(`/map/${map.id}?view=${map.viewToken}`, '_blank')
                       }
-                      className="rounded-lg bg-connodo-bg-secondary border border-connodo-border/50 px-3 py-2 text-xs font-medium text-connodo-text-primary hover:bg-connodo-accent/30 transition-colors shadow-sm flex items-center justify-center gap-1"
+                      className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-2 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm flex items-center justify-center gap-1"
                       title="Preview as Viewer"
                     >
                       Preview 🔍
@@ -533,7 +583,7 @@ export default function HomePage() {
                     <button
                       onClick={() => handleDuplicate(map.id, map.ownerToken)}
                       disabled={duplicatingId === map.id}
-                      className="rounded-lg bg-connodo-bg-secondary border border-connodo-border/50 px-3 py-1.5 text-xs font-medium text-connodo-text-primary hover:bg-connodo-accent/30 transition-colors shadow-sm disabled:opacity-50"
+                      className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-1.5 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm disabled:opacity-50"
                       title="Duplicate Map"
                     >
                       {duplicatingId === map.id ? '...' : '📋'}

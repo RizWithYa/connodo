@@ -1,4 +1,4 @@
-# Connodo MVP — Deployment Guide
+# MindMap MVP — Deployment Guide
 
 Complete step-by-step instructions to go from zero to a live, production deployment on **Supabase + Vercel**.
 
@@ -21,7 +21,7 @@ Complete step-by-step instructions to go from zero to a live, production deploym
 1. Go to [https://supabase.com/dashboard](https://supabase.com/dashboard) and sign in.
 2. Click **New project**.
 3. Fill in:
-   - **Name**: `Connodo` (or any name)
+   - **Name**: `mindmap` (or any name)
    - **Database Password**: generate a strong password and save it somewhere safe
    - **Region**: choose the region closest to your users
 4. Click **Create new project** and wait ~2 minutes for provisioning.
@@ -44,7 +44,7 @@ Run each of these verification queries in a new SQL Editor tab:
 ```sql
 SELECT column_name, data_type, column_default, is_nullable
 FROM information_schema.columns
-WHERE table_name = 'Connodos'
+WHERE table_name = 'mindmaps'
 ORDER BY ordinal_position;
 ```
 Expected: 8 rows — `id`, `title`, `nodes`, `edges`, `view_token`, `edit_token`, `owner_token`, `updated_at`.
@@ -53,18 +53,18 @@ Expected: 8 rows — `id`, `title`, `nodes`, `edges`, `view_token`, `edit_token`
 ```sql
 SELECT policyname, cmd, qual
 FROM pg_policies
-WHERE tablename = 'Connodos';
+WHERE tablename = 'mindmaps';
 ```
 Expected: 5 policies — read, insert, canvas update, title update, delete.
 
 **Smoke test — insert a map and verify auto-generated tokens:**
 ```sql
-INSERT INTO Connodos DEFAULT VALUES
+INSERT INTO mindmaps DEFAULT VALUES
 RETURNING id, view_token, edit_token, owner_token;
 ```
 Expected: 1 row with 4 UUID values. Delete this test row after:
 ```sql
-DELETE FROM Connodos WHERE title = 'Untitled Map';
+DELETE FROM mindmaps WHERE title = 'Untitled Map';
 ```
 
 ---
@@ -85,7 +85,7 @@ DELETE FROM Connodos WHERE title = 'Untitled Map';
 
 ## Step 4 — Configure Local Development
 
-1. Open `Connodo-app/.env.local` in your editor.
+1. Open `mindmap-app/.env.local` in your editor.
 2. Replace the placeholder values:
 
 ```env
@@ -95,12 +95,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 3. Start the dev server:
 ```bash
-cd Connodo-app
+cd mindmap-app
 npm install
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) — you should see the Connodo homepage.
+4. Open [http://localhost:3000](http://localhost:3000) — you should see the MindMap homepage.
 
 ---
 
@@ -147,7 +147,7 @@ Before deploying, verify all 3 roles work correctly.
 3. Refresh the page — title should persist
 4. ✅ Verify the title is updated in the DB:
    ```sql
-   SELECT id, title FROM Connodos ORDER BY updated_at DESC LIMIT 1;
+   SELECT id, title FROM mindmaps ORDER BY updated_at DESC LIMIT 1;
    ```
 
 ### F. Test export
@@ -165,7 +165,7 @@ Before deploying, verify all 3 roles work correctly.
 4. ✅ Verify: redirected to `/`
 5. ✅ Verify the map is gone from DB:
    ```sql
-   SELECT COUNT(*) FROM Connodos;
+   SELECT COUNT(*) FROM mindmaps;
    ```
 
 ---
@@ -178,13 +178,13 @@ Before deploying, verify all 3 roles work correctly.
 # Install Vercel CLI if you don't have it
 npm install -g vercel
 
-# From the Connodo-app directory
-cd Connodo-app
+# From the mindmap-app directory
+cd mindmap-app
 vercel
 
 # Follow the prompts:
 # - Link to existing project? No → create new
-# - Project name: Connodo (or any)
+# - Project name: mindmap (or any)
 # - Root directory: ./ (current)
 # - Override build settings? No
 ```
@@ -198,7 +198,7 @@ When prompted to add environment variables, enter:
 1. Push this repo to GitHub.
 2. Go to [https://vercel.com/new](https://vercel.com/new).
 3. Click **Import Git Repository** → select your repo.
-4. Set **Root Directory** to `Connodo-app`.
+4. Set **Root Directory** to `mindmap-app`.
 5. Under **Environment Variables**, add:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -210,7 +210,7 @@ When prompted to add environment variables, enter:
 
 After Vercel finishes (usually ~2 minutes):
 
-1. Open your production URL (e.g. `https://Connodo-xyz.vercel.app`)
+1. Open your production URL (e.g. `https://mindmap-xyz.vercel.app`)
 2. Repeat the **Step 5 access level tests** against the live URL
 3. Confirm share links contain the production domain (not `localhost`)
 
@@ -269,7 +269,7 @@ No other environment variables are needed. The `anon` key is safe to expose — 
 ## Schema Quick Reference
 
 ```sql
--- Connodos table
+-- mindmaps table
 id           UUID        PRIMARY KEY DEFAULT gen_random_uuid()
 title        TEXT        NOT NULL    DEFAULT 'Untitled Map'
 nodes        JSONB       NOT NULL    DEFAULT '[]'
@@ -287,9 +287,9 @@ UPDATE  → Allow title update with owner token  (USING true)
 DELETE  → Allow delete with owner token     (USING true)
 
 -- Indexes
-idx_Connodos_view_token   ON Connodos (view_token)
-idx_Connodos_edit_token   ON Connodos (edit_token)
-idx_Connodos_owner_token  ON Connodos (owner_token)
+idx_mindmaps_view_token   ON mindmaps (view_token)
+idx_mindmaps_edit_token   ON mindmaps (edit_token)
+idx_mindmaps_owner_token  ON mindmaps (owner_token)
 
 -- Trigger
 set_updated_at  BEFORE UPDATE → sets updated_at = NOW()
@@ -305,4 +305,4 @@ set_updated_at  BEFORE UPDATE → sets updated_at = NOW()
 | Editor | `/map/[id]?edit=[edit_token]` | Edit canvas, export |
 | Viewer | `/map/[id]?view=[view_token]` | Read-only, export |
 
-The owner token is also persisted to `localStorage` under key `Connodo_owned_[id]`, so the owner can return to `/map/[id]` without the token in the URL and still get full access.
+The owner token is also persisted to `localStorage` under key `mindmap_owned_[id]`, so the owner can return to `/map/[id]` without the token in the URL and still get full access.

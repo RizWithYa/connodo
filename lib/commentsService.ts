@@ -14,7 +14,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function fetchComments(token: string, mapId: string, nodeId: string): Promise<Comment[]> {
   const client = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { 'x-connodo-token': token } }
+    global: { headers: { 'x-mindmap-token': token } }
   });
   const { data } = await client
     .from('node_comments')
@@ -27,7 +27,7 @@ export async function fetchComments(token: string, mapId: string, nodeId: string
 
 export async function addComment(token: string, mapId: string, nodeId: string, text: string, author: string): Promise<Comment | null> {
   const client = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { 'x-connodo-token': token } }
+    global: { headers: { 'x-mindmap-token': token } }
   });
   const { data } = await client
     .from('node_comments')
@@ -39,14 +39,14 @@ export async function addComment(token: string, mapId: string, nodeId: string, t
 
 export async function deleteComment(token: string, commentId: string): Promise<void> {
   const client = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { 'x-connodo-token': token } }
+    global: { headers: { 'x-mindmap-token': token } }
   });
   await client.from('node_comments').delete().eq('id', commentId);
 }
 
 export async function fetchMapComments(token: string, mapId: string): Promise<Comment[]> {
   const client = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { 'x-connodo-token': token } }
+    global: { headers: { 'x-mindmap-token': token } }
   });
   const { data } = await client
     .from('node_comments')

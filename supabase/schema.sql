@@ -1,5 +1,5 @@
 -- =============================================================================
--- Connodo MVP — Supabase Database Schema
+-- MindMap MVP — Supabase Database Schema
 -- Run this entire file in the Supabase SQL Editor (Dashboard → SQL Editor → New query)
 -- Safe to re-run: all statements use IF NOT EXISTS / CREATE OR REPLACE
 -- =============================================================================
@@ -11,9 +11,9 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ---------------------------------------------------------------------------
--- 1. Create the Connodos table
+-- 1. Create the mindmaps table
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS Connodos (
+CREATE TABLE IF NOT EXISTS mindmaps (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   title        TEXT        NOT NULL    DEFAULT 'Untitled Map',
   nodes        JSONB       NOT NULL    DEFAULT '[]',
@@ -25,14 +25,14 @@ CREATE TABLE IF NOT EXISTS Connodos (
 );
 
 -- Grant standard access to all roles so RLS can take over
-GRANT ALL ON TABLE Connodos TO anon;
-GRANT ALL ON TABLE Connodos TO authenticated;
-GRANT ALL ON TABLE Connodos TO service_role;
+GRANT ALL ON TABLE mindmaps TO anon;
+GRANT ALL ON TABLE mindmaps TO authenticated;
+GRANT ALL ON TABLE mindmaps TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- 2. Enable Row Level Security
 -- ---------------------------------------------------------------------------
-ALTER TABLE Connodos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mindmaps ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- 3. RLS Policies
@@ -55,17 +55,17 @@ ALTER TABLE Connodos ENABLE ROW LEVEL SECURITY;
 -- ---------------------------------------------------------------------------
 
 -- DROP existing policies before recreating (idempotent re-run safety)
-DROP POLICY IF EXISTS "Allow read with any valid token"         ON Connodos;
-DROP POLICY IF EXISTS "Allow insert for anon"                  ON Connodos;
-DROP POLICY IF EXISTS "Allow canvas update with edit or owner token" ON Connodos;
-DROP POLICY IF EXISTS "Allow title update with owner token"    ON Connodos;
-DROP POLICY IF EXISTS "Allow delete with owner token"          ON Connodos;
+DROP POLICY IF EXISTS "Allow read with any valid token"         ON mindmaps;
+DROP POLICY IF EXISTS "Allow insert for anon"                  ON mindmaps;
+DROP POLICY IF EXISTS "Allow canvas update with edit or owner token" ON mindmaps;
+DROP POLICY IF EXISTS "Allow title update with owner token"    ON mindmaps;
+DROP POLICY IF EXISTS "Allow delete with owner token"          ON mindmaps;
 
 -- SELECT: row is visible if the queried token column matches this row's value.
 -- The app always sends exactly one .eq('<token_col>', token), which Postgres
 -- evaluates against the USING expression at row level.
 CREATE POLICY "Allow read with any valid token"
-  ON Connodos
+  ON mindmaps
   FOR SELECT
   TO anon
   USING (true);
@@ -77,7 +77,7 @@ CREATE POLICY "Allow read with any valid token"
 
 -- INSERT: any anon user may create a new map (no token needed at creation time)
 CREATE POLICY "Allow insert for anon"
-  ON Connodos
+  ON mindmaps
   FOR INSERT
   TO anon
   WITH CHECK (true);
@@ -87,7 +87,7 @@ CREATE POLICY "Allow insert for anon"
 -- The app sends .eq('edit_token', token) or .eq('owner_token', token).
 -- Split into two policies so Postgres evaluates each independently (OR logic).
 CREATE POLICY "Allow canvas update with edit token"
-  ON Connodos
+  ON mindmaps
   FOR UPDATE
   TO anon
   USING (true)
@@ -101,7 +101,7 @@ CREATE POLICY "Allow canvas update with edit token"
 -- layer: MapTitle.tsx always sends .eq('owner_token', ownerToken).
 -- Having this as a named policy documents the intent at the schema level.
 CREATE POLICY "Allow title update with owner token"
-  ON Connodos
+  ON mindmaps
   FOR UPDATE
   TO anon
   USING (true)
@@ -114,7 +114,7 @@ CREATE POLICY "Allow title update with owner token"
 
 -- DELETE: allowed only if owner_token matches (app sends .eq('owner_token', token))
 CREATE POLICY "Allow delete with owner token"
-  ON Connodos
+  ON mindmaps
   FOR DELETE
   TO anon
   USING (true);
@@ -122,9 +122,9 @@ CREATE POLICY "Allow delete with owner token"
 -- ---------------------------------------------------------------------------
 -- 4. Indexes — fast token lookups (O(log n) vs O(n) full scan)
 -- ---------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_Connodos_view_token   ON Connodos (view_token);
-CREATE INDEX IF NOT EXISTS idx_Connodos_edit_token   ON Connodos (edit_token);
-CREATE INDEX IF NOT EXISTS idx_Connodos_owner_token  ON Connodos (owner_token);
+CREATE INDEX IF NOT EXISTS idx_mindmaps_view_token   ON mindmaps (view_token);
+CREATE INDEX IF NOT EXISTS idx_mindmaps_edit_token   ON mindmaps (edit_token);
+CREATE INDEX IF NOT EXISTS idx_mindmaps_owner_token  ON mindmaps (owner_token);
 
 -- ---------------------------------------------------------------------------
 -- 5. updated_at auto-update trigger
@@ -138,10 +138,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Drop trigger first so CREATE doesn't fail on re-run
-DROP TRIGGER IF EXISTS set_updated_at ON Connodos;
+DROP TRIGGER IF EXISTS set_updated_at ON mindmaps;
 
 CREATE TRIGGER set_updated_at
-  BEFORE UPDATE ON Connodos
+  BEFORE UPDATE ON mindmaps
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
@@ -151,19 +151,19 @@ CREATE TRIGGER set_updated_at
 -- Check table columns:
 --   SELECT column_name, data_type, column_default, is_nullable
 --   FROM information_schema.columns
---   WHERE table_name = 'Connodos'
+--   WHERE table_name = 'mindmaps'
 --   ORDER BY ordinal_position;
 --
 -- Check RLS policies:
 --   SELECT policyname, cmd, qual, with_check
 --   FROM pg_policies
---   WHERE tablename = 'Connodos';
+--   WHERE tablename = 'mindmaps';
 --
 -- Check indexes:
 --   SELECT indexname, indexdef
 --   FROM pg_indexes
---   WHERE tablename = 'Connodos';
+--   WHERE tablename = 'mindmaps';
 --
 -- Smoke test — insert a map and verify tokens are generated:
---   INSERT INTO Connodos DEFAULT VALUES RETURNING id, view_token, edit_token, owner_token;
+--   INSERT INTO mindmaps DEFAULT VALUES RETURNING id, view_token, edit_token, owner_token;
 -- ---------------------------------------------------------------------------

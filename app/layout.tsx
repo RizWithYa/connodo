@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'Connodo',
-  description: 'A frictionless, lightweight web-based connodo-mapping application.',
+  title: 'MindMap',
+  description: 'A frictionless, lightweight web-based mind-mapping application.',
 };
 
 export default function RootLayout({

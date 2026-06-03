@@ -9,7 +9,7 @@
  *   view_token   → role: 'viewer' (read-only)
  *   none         → role: 'viewer' (fallback — still read-only)
  *
- * Owner token is ALSO persisted in localStorage under key `connodo_owned_[id]`
+ * Owner token is ALSO persisted in localStorage under key `mindmap_owned_[id]`
  * so the owner can return to their map without keeping the URL.
  */
 
@@ -40,7 +40,7 @@ export function resolveTokenFromParams(
   if (owner) {
     // Persist owner token in localStorage so the owner can return later
     if (typeof window !== 'undefined') {
-      localStorage.setItem(`connodo_owned_${mapId}`, owner);
+      localStorage.setItem(`mindmap_owned_${mapId}`, owner);
     }
     return { role: 'owner', token: owner, tokenColumn: 'owner_token' };
   }
@@ -55,7 +55,7 @@ export function resolveTokenFromParams(
 
   // No token in URL — check localStorage for a stored owner token
   if (typeof window !== 'undefined') {
-    const storedOwner = localStorage.getItem(`connodo_owned_${mapId}`);
+    const storedOwner = localStorage.getItem(`mindmap_owned_${mapId}`);
     if (storedOwner) {
       return { role: 'owner', token: storedOwner, tokenColumn: 'owner_token' };
     }

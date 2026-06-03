@@ -46,17 +46,17 @@ import CommentPanel from '@/components/CommentPanel';
 // Types — MindMap-specific node data
   // ---------------------------------------------------------------------------
 
-export interface ConnodoNodeData extends Record<string, unknown> {
+export interface MindMapNodeData extends Record<string, unknown> {
   label: string;
   color?: string;
   shape?: string;
   _autoEdit?: boolean;
 }
 
-export type ConnodoNode = Node<ConnodoNodeData>;
-export type ConnodoEdge = Edge;
+export type MindMapNode = Node<MindMapNodeData>;
+export type MindMapEdge = Edge;
 
-type Snapshot = { nodes: ConnodoNode[]; edges: ConnodoEdge[] };
+type Snapshot = { nodes: MindMapNode[]; edges: MindMapEdge[] };
 
 // ---------------------------------------------------------------------------
 // Types & Context — quick-add direction + handler contexts
@@ -84,11 +84,11 @@ const PRESET_COLORS = [
   '#fecaca', '#e9d5ff', '#fed7aa', '#f1f5f9',
 ];
 
-function ConnodoNodeEditable(props: NodeProps<ConnodoNode>) {
+function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
   const { id, data, selected } = props;
   const [editing, setEditing] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const { setNodes, setEdges } = useReactFlow<ConnodoNode, ConnodoEdge>();
+  const { setNodes, setEdges } = useReactFlow<MindMapNode, MindMapEdge>();
   const onQuickAdd = useContext(QuickAddContext);
   const pushSnapshot = useContext(UndoRedoContext);
 
@@ -161,9 +161,9 @@ function ConnodoNodeEditable(props: NodeProps<ConnodoNode>) {
     setNodes((nds) => {
       const source = nds.find((n) => n.id === id);
       if (!source) return nds;
-      const dup: ConnodoNode = {
+      const dup: MindMapNode = {
         id: newId,
-        type: 'connodo',
+        type: 'mindmap',
         position: { x: source.position.x + 30, y: source.position.y + 30 },
         data: { ...source.data, _autoEdit: undefined },
       };
@@ -330,7 +330,7 @@ function ConnodoNodeEditable(props: NodeProps<ConnodoNode>) {
 // Custom node — read-only (viewer)
 // ---------------------------------------------------------------------------
 
-function ConnodoNodeReadOnly(props: NodeProps<ConnodoNode>) {
+function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
   const { data } = props;
   const label = typeof data.label === 'string' ? data.label : 'Node';
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
@@ -402,7 +402,7 @@ function ConnodoNodeReadOnly(props: NodeProps<ConnodoNode>) {
 // Custom edge — editable (owner / editor)
 // ---------------------------------------------------------------------------
 
-function ConnodoEdgeEditable(props: EdgeProps<ConnodoEdge>) {
+function MindMapEdgeEditable(props: EdgeProps<MindMapEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, data, style, markerEnd, label } = props;
   const { setEdges } = useReactFlow();
   const pushSnapshot = useContext(UndoRedoContext);
@@ -509,7 +509,7 @@ function ConnodoEdgeEditable(props: EdgeProps<ConnodoEdge>) {
 // Custom edge — read-only (viewer)
 // ---------------------------------------------------------------------------
 
-function ConnodoEdgeReadOnly(props: EdgeProps<ConnodoEdge>) {
+function MindMapEdgeReadOnly(props: EdgeProps<MindMapEdge>) {
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, style, markerEnd, label } = props;
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
@@ -562,8 +562,8 @@ interface CanvasInnerProps {
   function CanvasInner({ mapId, tokenColumn, token, role }: CanvasInnerProps) {
   const router = useRouter();
 
-  const [nodes, setNodes] = useState<ConnodoNode[]>([]);
-  const [edges, setEdges] = useState<ConnodoEdge[]>([]);
+  const [nodes, setNodes] = useState<MindMapNode[]>([]);
+  const [edges, setEdges] = useState<MindMapEdge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -584,8 +584,8 @@ interface CanvasInnerProps {
   const MAX_HISTORY = 20;
   const pastRef = useRef<Snapshot[]>([]);
   const futureRef = useRef<Snapshot[]>([]);
-  const nodesRef = useRef<ConnodoNode[]>(nodes);
-  const edgesRef = useRef<ConnodoEdge[]>(edges);
+  const nodesRef = useRef<MindMapNode[]>(nodes);
+  const edgesRef = useRef<MindMapEdge[]>(edges);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -593,7 +593,7 @@ interface CanvasInnerProps {
   useEffect(() => { edgesRef.current = edges; }, [edges]);
 
   // Copy-paste clipboard (local, not system clipboard)
-  const clipboardRef = useRef<{ nodes: ConnodoNode[] }>({ nodes: [] });
+  const clipboardRef = useRef<{ nodes: MindMapNode[] }>({ nodes: [] });
   const pasteCountRef = useRef(0);
 
   const pushSnapshot = useCallback(() => {
@@ -636,7 +636,7 @@ interface CanvasInnerProps {
     setCanRedo(futureRef.current.length > 0);
   }
 
-  const { screenToFlowPosition, fitView } = useReactFlow<ConnodoNode, ConnodoEdge>();
+  const { screenToFlowPosition, fitView } = useReactFlow<MindMapNode, MindMapEdge>();
 
   const canEdit = role === 'owner' || role === 'editor';
   const readOnly = !canEdit;
@@ -712,11 +712,11 @@ interface CanvasInnerProps {
   const isCanvasReadOnly = !canEdit || isPresentationMode;
 
   const nodeTypes: NodeTypes = useMemo(() => ({
-    connodo: isCanvasReadOnly ? ConnodoNodeReadOnly : ConnodoNodeEditable,
+    mindmap: isCanvasReadOnly ? MindMapNodeReadOnly : MindMapNodeEditable,
   }), [isCanvasReadOnly]);
 
   const edgeTypes: EdgeTypes = useMemo(() => ({
-    smoothstep: isCanvasReadOnly ? ConnodoEdgeReadOnly : ConnodoEdgeEditable,
+    smoothstep: isCanvasReadOnly ? MindMapEdgeReadOnly : MindMapEdgeEditable,
   }), [isCanvasReadOnly]);
 
   // -------------------------------------------------------------------------
@@ -733,7 +733,7 @@ interface CanvasInnerProps {
         let activeToken = token;
 
         if (!activeToken && typeof window !== 'undefined') {
-          const storedToken = localStorage.getItem(`connodo_owned_${mapId}`);
+          const storedToken = localStorage.getItem(`mindmap_owned_${mapId}`);
           if (storedToken) {
             activeColumn = 'owner_token';
             activeToken = storedToken;
@@ -763,11 +763,11 @@ interface CanvasInnerProps {
           return;
         }
 
-        const rawNodes = ((data.nodes ?? []) as ConnodoNode[]).map((n) => ({
+        const rawNodes = ((data.nodes ?? []) as MindMapNode[]).map((n) => ({
           ...n,
-          type: 'connodo' as const,
+          type: 'mindmap' as const,
         }));
-        const rawEdges = (data.edges ?? []) as ConnodoEdge[];
+        const rawEdges = (data.edges ?? []) as MindMapEdge[];
         // Migrate edges from single-handle era: add default handle IDs
         const migratedEdges = rawEdges.map((e) => ({
           ...e,
@@ -822,7 +822,7 @@ interface CanvasInnerProps {
                 canvasHeight: 225,
                 pixelRatio: 1,
               }).then((dataUrl) => {
-                localStorage.setItem(`connodo_thumb_${mapId}`, dataUrl);
+                localStorage.setItem(`mindmap_thumb_${mapId}`, dataUrl);
               }).catch(err => console.error('Thumb capture failed', err));
             });
           }
@@ -836,7 +836,7 @@ interface CanvasInnerProps {
   // Debounced save — 1500ms after last change (per spec)
   // -------------------------------------------------------------------------
   const persistSave = useCallback(
-    async (nodesToSave: ConnodoNode[], edgesToSave: ConnodoEdge[]) => {
+    async (nodesToSave: MindMapNode[], edgesToSave: MindMapEdge[]) => {
       setSaveStatus('saving');
       try {
         const client = token ? createTokenClient(token) : supabase;
@@ -875,7 +875,7 @@ interface CanvasInnerProps {
   // -------------------------------------------------------------------------
   // React Flow change handlers
   // -------------------------------------------------------------------------
-  const onNodesChange: OnNodesChange<ConnodoNode> = useCallback(
+  const onNodesChange: OnNodesChange<MindMapNode> = useCallback(
     (changes) => {
       setNodes((nds) => {
         const updated = applyNodeChanges(changes, nds);
@@ -887,7 +887,7 @@ interface CanvasInnerProps {
     [canEdit, debouncedSave, edges]
   );
 
-  const onEdgesChange: OnEdgesChange<ConnodoEdge> = useCallback(
+  const onEdgesChange: OnEdgesChange<MindMapEdge> = useCallback(
     (changes) => {
       setEdges((eds) => {
         const updated = applyEdgeChanges(changes, eds);
@@ -938,9 +938,9 @@ interface CanvasInnerProps {
       y: window.innerHeight / 2,
     });
 
-    const newNode: ConnodoNode = {
+    const newNode: MindMapNode = {
       id: `node-${Date.now()}`,
-      type: 'connodo',
+      type: 'mindmap',
       position,
       data: { label: 'New Node' },
     };
@@ -963,9 +963,9 @@ interface CanvasInnerProps {
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     pushSnapshot();
 
-    const newNode: ConnodoNode = {
+    const newNode: MindMapNode = {
       id: `node-${Date.now()}`,
-      type: 'connodo',
+      type: 'mindmap',
       position,
       data: { label: 'New Node', _autoEdit: true },
     };
@@ -990,9 +990,9 @@ interface CanvasInnerProps {
         const sourceNode = nds.find((n) => n.id === sourceId);
         if (!sourceNode) return nds;
 
-        const newNode: ConnodoNode = {
+        const newNode: MindMapNode = {
           id: newId,
-          type: 'connodo',
+          type: 'mindmap',
           position: {
             x: sourceNode.position.x + offsets.x,
             y: sourceNode.position.y + offsets.y,
@@ -1023,8 +1023,8 @@ interface CanvasInnerProps {
   // -------------------------------------------------------------------------
   function handleDeleteSelected() {
     pushSnapshot();
-    let remainingNodes: ConnodoNode[] = [];
-    let remainingEdges: ConnodoEdge[] = [];
+    let remainingNodes: MindMapNode[] = [];
+    let remainingEdges: MindMapEdge[] = [];
 
     setNodes((nds) => {
       const selectedIds = new Set(nds.filter((n) => n.selected).map((n) => n.id));
@@ -1067,7 +1067,7 @@ interface CanvasInnerProps {
 
       // Clean up localStorage entry
       if (typeof window !== 'undefined') {
-        localStorage.removeItem(`connodo_owned_${mapId}`);
+        localStorage.removeItem(`mindmap_owned_${mapId}`);
       }
 
       router.push('/');
@@ -1082,17 +1082,17 @@ interface CanvasInnerProps {
   async function handleExportPng() {
     const el = flowWrapperRef.current;
     if (!el) return;
-    await exportAsPng(el, title || 'connodo');
+    await exportAsPng(el, title || 'mindmap');
   }
 
   async function handleExportPdf() {
     const el = flowWrapperRef.current;
     if (!el) return;
-    await exportAsPdf(el, title || 'connodo');
+    await exportAsPdf(el, title || 'mindmap');
   }
 
   function handleExportJson() {
-    exportAsJson(title, nodes, edges, title || 'connodo');
+    exportAsJson(title, nodes, edges, title || 'mindmap');
   }
 
   // -------------------------------------------------------------------------
@@ -1182,9 +1182,9 @@ interface CanvasInnerProps {
       pasteCountRef.current += 1;
       const offset = pasteCountRef.current * 30;
       pushSnapshot();
-      const newNodes: ConnodoNode[] = clip.nodes.map((n) => ({
+      const newNodes: MindMapNode[] = clip.nodes.map((n) => ({
         id: `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        type: 'connodo' as const,
+        type: 'mindmap' as const,
         position: { x: n.position.x + offset, y: n.position.y + offset },
         data: { ...n.data, _autoEdit: undefined },
       }));
@@ -1210,9 +1210,9 @@ interface CanvasInnerProps {
       setNodes((nds) => {
         const source = nds.find((n) => n.id === selectedNode.id);
         if (!source) return nds;
-        const dup: ConnodoNode = {
+        const dup: MindMapNode = {
           id: newId,
-          type: 'connodo',
+          type: 'mindmap',
           position: { x: source.position.x + 30, y: source.position.y + 30 },
           data: { ...source.data, _autoEdit: undefined },
         };
@@ -1243,9 +1243,9 @@ interface CanvasInnerProps {
       e.preventDefault();
       pushSnapshot();
       const childId = `node-${Date.now()}`;
-      const childNode: ConnodoNode = {
+      const childNode: MindMapNode = {
         id: childId,
-        type: 'connodo',
+        type: 'mindmap',
         position: {
           x: selectedNode.position.x + 250,
           y: selectedNode.position.y,
@@ -1275,9 +1275,9 @@ interface CanvasInnerProps {
       e.preventDefault();
       pushSnapshot();
       const siblingId = `node-${Date.now()}`;
-      const siblingNode: ConnodoNode = {
+      const siblingNode: MindMapNode = {
         id: siblingId,
-        type: 'connodo',
+        type: 'mindmap',
         position: {
           x: selectedNode.position.x,
           y: selectedNode.position.y + 100,
@@ -1407,14 +1407,14 @@ interface CanvasInnerProps {
       {isPresentationMode && (
         <button
           onClick={() => setIsPresentationMode(false)}
-          className="fixed top-4 right-4 z-50 bg-connodo-accent text-white rounded-lg px-3 py-2 text-sm shadow-md hover:bg-connodo-accent/90 transition-colors"
+          className="fixed top-4 right-4 z-50 bg-mindmap-accent text-white rounded-lg px-3 py-2 text-sm shadow-md hover:bg-mindmap-accent/90 transition-colors"
         >
           Exit Presentation ✕
         </button>
       )}
 
       <div className="flex-1 relative" ref={flowWrapperRef} onDoubleClick={handleCanvasDoubleClick}>
-        <ReactFlow<ConnodoNode, ConnodoEdge>
+        <ReactFlow<MindMapNode, MindMapEdge>
           nodes={displayNodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -1503,14 +1503,14 @@ interface CanvasInnerProps {
 // Public export — wraps CanvasInner in ReactFlowProvider
 // ---------------------------------------------------------------------------
 
-export interface ConnodoCanvasProps {
+export interface MindMapCanvasProps {
   mapId: string;
   tokenColumn: 'owner_token' | 'edit_token' | 'view_token' | null;
   token: string | null;
   role: AccessRole;
 }
 
-export default function ConnodoCanvas(props: ConnodoCanvasProps) {
+export default function MindMapCanvas(props: MindMapCanvasProps) {
   return (
     <ReactFlowProvider>
       <CanvasInner {...props} />

@@ -14,14 +14,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 /**
- * Creates a Supabase client with the custom x-connodo-token header
+ * Creates a Supabase client with the custom x-mindmap-token header
  * used to securely pass token verifications to Postgres RLS.
  */
 export function createTokenClient(token: string) {
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {
-        'x-connodo-token': token,
+        'x-mindmap-token': token,
       },
     },
   });
@@ -30,7 +30,7 @@ export function createTokenClient(token: string) {
 // Types matching the `mindmaps` table schema
 // ---------------------------------------------------------------------------
 
-export interface Connodo {
+export interface MindMap {
   id: string;
   title: string;
   nodes: FlowNode[];
