@@ -14,8 +14,11 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'MindMap — Create and Share Mindmaps',
-  description: 'Create beautiful mindmaps, branch ideas freely, and save or share your best work when you sign in.',
+  title: 'Connodo — Map Your Thoughts Before They Disappear',
+  description: 'A branching workspace for ideas. Start instantly in Guest Mode, then save and share when your mindmap matters.',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

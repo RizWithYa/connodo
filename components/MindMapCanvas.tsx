@@ -49,6 +49,10 @@ import CommentPanel from '@/components/CommentPanel';
 export interface MindMapNodeData extends Record<string, unknown> {
   label: string;
   color?: string;
+  textColor?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
   shape?: string;
   _autoEdit?: boolean;
 }
@@ -84,6 +88,9 @@ const PRESET_COLORS = [
   '#fecaca', '#e9d5ff', '#fed7aa', '#f1f5f9',
 ];
 
+const TEXT_COLORS = ['#1e293b', '#ffffff', '#dc2626', '#2563eb', '#16a34a', '#9333ea'];
+type TextStyleKey = 'bold' | 'italic' | 'underline';
+
 function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
   const { id, data, selected } = props;
   const [editing, setEditing] = useState(false);
@@ -93,6 +100,10 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
   const pushSnapshot = useContext(UndoRedoContext);
 
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
+  const textColor = typeof data.textColor === 'string' ? data.textColor : '#1e293b';
+  const bold = data.bold === true;
+  const italic = data.italic === true;
+  const underline = data.underline === true;
   const showMiniToolbar = selected && !editing;
   const showControls = hovered || selected;
 
@@ -131,6 +142,24 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
     setNodes((nds) =>
       nds.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, color } } : n
+      )
+    );
+  }
+
+  function handleTextColorChange(textColor: string) {
+    pushSnapshot?.();
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, textColor } } : n
+      )
+    );
+  }
+
+  function handleTextStyleToggle(style: TextStyleKey) {
+    pushSnapshot?.();
+    setNodes((nds) =>
+      nds.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, [style]: n.data[style] !== true } } : n
       )
     );
   }
@@ -235,6 +264,10 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
               onChange={handleLabelChange}
               editing={editing}
               onEditingChange={setEditing}
+              textColor={textColor}
+              bold={bold}
+              italic={italic}
+              underline={underline}
               readOnly={false}
             />
           </div>
@@ -250,6 +283,10 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
               onChange={handleLabelChange}
               editing={editing}
               onEditingChange={setEditing}
+              textColor={textColor}
+              bold={bold}
+              italic={italic}
+              underline={underline}
               readOnly={false}
             />
           </div>
@@ -260,6 +297,10 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
           onChange={handleLabelChange}
           editing={editing}
           onEditingChange={setEditing}
+          textColor={textColor}
+          bold={bold}
+          italic={italic}
+          underline={underline}
           readOnly={false}
         />
       )}
@@ -310,6 +351,43 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
               aria-label={`Set node color to ${c}`}
             />
           ))}
+          <div className="w-px h-4 bg-slate-200 mx-0.5" />
+          {TEXT_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleTextColorChange(c); }}
+              className={[
+                'w-4 h-4 rounded-full border transition-transform hover:scale-125',
+                c === textColor ? 'border-blue-500 ring-1 ring-blue-400' : 'border-slate-300',
+              ].join(' ')}
+              style={{ backgroundColor: c }}
+              aria-label={`Set text color to ${c}`}
+              title="Text color"
+            />
+          ))}
+          <div className="w-px h-4 bg-slate-200 mx-0.5" />
+          {([
+            ['bold', 'B'],
+            ['italic', 'I'],
+            ['underline', 'U'],
+          ] as const).map(([style, label]) => (
+            <button
+              key={style}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleTextStyleToggle(style); }}
+              className={[
+                'w-5 h-5 flex items-center justify-center rounded text-xs transition-colors',
+                data[style] === true ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-400' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+                style === 'bold' ? 'font-bold' : '',
+                style === 'italic' ? 'italic' : '',
+                style === 'underline' ? 'underline' : '',
+              ].join(' ')}
+              title={`Toggle ${style}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -334,6 +412,10 @@ function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
   const { data } = props;
   const label = typeof data.label === 'string' ? data.label : 'Node';
   const bgColor = typeof data.color === 'string' ? data.color : '#ffffff';
+  const textColor = typeof data.textColor === 'string' ? data.textColor : '#1e293b';
+  const bold = data.bold === true;
+  const italic = data.italic === true;
+  const underline = data.underline === true;
   const shape = typeof data.shape === 'string' ? data.shape : 'rounded';
   const searchMatch = data._searchMatch as boolean | undefined;
   const searchDimmed = data._searchDimmed as boolean | undefined;
@@ -379,7 +461,7 @@ function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
           style={{ transform: 'rotate(45deg)', backgroundColor: bgColor }} 
         >
           <div style={{ transform: 'rotate(-45deg)' }} className="w-full h-full flex items-center justify-center">
-            <NodeEditor value={label} readOnly />
+            <NodeEditor value={label} textColor={textColor} bold={bold} italic={italic} underline={underline} readOnly />
           </div>
         </div>
       ) : shape === 'circle' ? (
@@ -388,11 +470,11 @@ function MindMapNodeReadOnly(props: NodeProps<MindMapNode>) {
           style={{ backgroundColor: bgColor }} 
         >
           <div className="w-full h-full flex items-center justify-center">
-            <NodeEditor value={label} readOnly />
+            <NodeEditor value={label} textColor={textColor} bold={bold} italic={italic} underline={underline} readOnly />
           </div>
         </div>
       ) : (
-        <NodeEditor value={label} readOnly />
+        <NodeEditor value={label} textColor={textColor} bold={bold} italic={italic} underline={underline} readOnly />
       )}
     </div>
   );
@@ -832,31 +914,40 @@ interface CanvasInnerProps {
   // Auto-fit on initial load — once only, with smooth animation
   // -------------------------------------------------------------------------
   const hasFittedView = useRef(false);
-  const hasCapturedThumb = useRef(false);
+  const lastThumbCapture = useRef(0);
+
+  const captureThumbnail = useCallback(() => {
+    const now = Date.now();
+    // Throttle: at most once every 8 seconds
+    if (now - lastThumbCapture.current < 8000) return;
+    lastThumbCapture.current = now;
+
+    const container = flowWrapperRef.current?.querySelector('.react-flow') as HTMLElement || flowWrapperRef.current;
+    if (!container || typeof window === 'undefined') return;
+
+    import('html-to-image').then(({ toPng }) => {
+      toPng(container, {
+        canvasWidth: 400,
+        canvasHeight: 225,
+        pixelRatio: 1,
+        backgroundColor: '#ffffff',
+        filter: (node: Element) => {
+          const cls = node.className || '';
+          if (typeof cls === 'string' && (cls.includes('react-flow__controls') || cls.includes('react-flow__minimap'))) return false;
+          return true;
+        },
+      }).then((dataUrl) => {
+        localStorage.setItem(`mindmap_thumb_${mapId}`, dataUrl);
+      }).catch(err => console.error('Thumb capture failed', err));
+    });
+  }, [mapId]);
+
   useEffect(() => {
     if (!loading && !error && nodes.length > 0 && !hasFittedView.current) {
       hasFittedView.current = true;
-      // Allow React Flow one frame to measure node dimensions
       requestAnimationFrame(() => {
         fitView({ padding: 0.2, duration: 400 });
-
-        // Capture thumbnail after fitView completes (e.g., 500ms delay post-fitView = 900ms)
-        setTimeout(() => {
-          const container = flowWrapperRef.current?.querySelector('.react-flow') as HTMLElement || flowWrapperRef.current;
-          if (!hasCapturedThumb.current && container && typeof window !== 'undefined') {
-            hasCapturedThumb.current = true;
-            import('html-to-image').then(({ toJpeg }) => {
-              toJpeg(container, {
-                quality: 0.2,
-                canvasWidth: 400,
-                canvasHeight: 225,
-                pixelRatio: 1,
-              }).then((dataUrl) => {
-                localStorage.setItem(`mindmap_thumb_${mapId}`, dataUrl);
-              }).catch(err => console.error('Thumb capture failed', err));
-            });
-          }
-        }, 900);
+        setTimeout(captureThumbnail, 900);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -893,13 +984,14 @@ interface CanvasInnerProps {
         } else {
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus('idle'), 2000);
+          captureThumbnail();
         }
       } catch (e) {
         console.error('Save exception:', e);
         setSaveStatus('error');
       }
     },
-    [mapId, tokenColumn, token, guestMode]
+    [mapId, tokenColumn, token, guestMode, captureThumbnail]
   );
 
   const debouncedSave = useDebounce(persistSave, 1500);
@@ -1100,6 +1192,7 @@ interface CanvasInnerProps {
       // Clean up localStorage entry
       if (typeof window !== 'undefined') {
         localStorage.removeItem(`mindmap_owned_${mapId}`);
+        localStorage.removeItem(`mindmap_thumb_${mapId}`);
       }
 
       router.push('/');
@@ -1359,11 +1452,11 @@ interface CanvasInnerProps {
   return (
     <UndoRedoContext.Provider value={pushSnapshot}>
     <QuickAddContext.Provider value={handleQuickAdd}>
-    <div
-      className="w-full h-full flex flex-col outline-none"
-      onKeyDown={handleKeyDown}
-      tabIndex={-1}
-    >
+      <div
+        className="w-full h-full flex flex-col outline-none"
+        onKeyDown={handleKeyDown}
+        tabIndex={-1}
+      >
       {isSearchOpen && (
         <div 
           className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-white rounded-xl shadow-xl border border-slate-200 px-4 py-2 flex items-center gap-2"
@@ -1452,8 +1545,9 @@ interface CanvasInnerProps {
         </button>
       )}
 
-      <div className="flex-1 relative" ref={flowWrapperRef} onDoubleClick={handleCanvasDoubleClick}>
+      <div className="flex-1 relative bg-white" ref={flowWrapperRef} onDoubleClick={handleCanvasDoubleClick}>
         <ReactFlow<MindMapNode, MindMapEdge>
+          style={{ backgroundColor: '#ffffff' }}
           nodes={displayNodes}
           edges={edges}
           onNodesChange={onNodesChange}

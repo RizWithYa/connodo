@@ -13,7 +13,7 @@ import {
 type AuthMode = 'login' | 'register';
 
 interface NavbarProps {
-  mode?: 'landing' | 'dashboard';
+  mode?: 'landing' | 'dashboard' | 'app';
 }
 
 export default function Navbar({ mode = 'dashboard' }: NavbarProps) {
@@ -95,37 +95,47 @@ export default function Navbar({ mode = 'dashboard' }: NavbarProps) {
 
   const userLabel = session?.user.user_metadata.full_name || session?.user.email || 'Account';
   const avatarUrl = session?.user.user_metadata.avatar_url;
+  const [imgError, setImgError] = useState(false);
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-mindmap-bg-primary/90 backdrop-blur-md border-b border-mindmap-border/30">
-        <div className="flex items-center justify-between h-14 px-6">
-          <Link href={mode === 'dashboard' ? '/dashboard' : '/'} className="text-mindmap-text-primary font-bold text-lg hover:text-white transition-colors">
-            🗺️ MindMap
+      <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-gradient-to-r from-mindmap-bg-primary via-mindmap-bg-primary to-[#1f2f4a]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between h-14 px-6">
+          <Link href={mode === 'landing' ? '/' : '/dashboard'} className="flex items-center gap-2 text-white font-bold text-lg hover:opacity-90 transition-opacity">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-mindmap-accent/30 text-sm" aria-hidden>🌿</span>
+            Connodo
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {loading ? null : session ? (
               <>
-                {avatarUrl ? (
-                  <div
-                    role="img"
-                    aria-label={userLabel}
-                    className="h-7 w-7 rounded-full bg-cover bg-center"
-                    style={{ backgroundImage: `url(${avatarUrl})` }}
+                <Link
+                  href="/"
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-mindmap-text-muted hover:bg-white/[0.07] hover:text-white transition-all hidden sm:inline"
+                >
+                  Home
+                </Link>
+                {avatarUrl && !imgError ? (
+                  <img
+                    src={avatarUrl}
+                    alt={userLabel}
+                    key={avatarUrl}
+                    onError={() => setImgError(true)}
+                    className="h-8 w-8 rounded-full object-cover ring-2 ring-white/10"
                   />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-mindmap-accent/70 text-white text-xs font-semibold flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-mindmap-accent to-[#5b7bce] text-white text-xs font-bold flex items-center justify-center ring-2 ring-white/10">
                     {userLabel.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="text-mindmap-text-primary text-sm hidden sm:inline">
+                <span className="text-white/80 text-sm font-medium hidden sm:inline max-w-[140px] truncate">
                   {userLabel}
                 </span>
+                <div className="h-5 w-px bg-white/10 hidden sm:block" />
                 <button
                   type="button"
                   onClick={() => signOut()}
-                  className="text-sm text-mindmap-text-muted hover:text-white transition-colors"
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-mindmap-text-muted hover:bg-red-500/10 hover:text-red-400 transition-all"
                 >
                   Sign out
                 </button>
@@ -135,14 +145,14 @@ export default function Navbar({ mode = 'dashboard' }: NavbarProps) {
                 <button
                   type="button"
                   onClick={() => openAuthModal('login')}
-                  className="rounded-lg border border-mindmap-border/50 px-4 py-2 text-sm font-medium text-mindmap-text-primary hover:bg-mindmap-accent/20 hover:text-white transition-colors"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-mindmap-text-muted hover:bg-white/[0.07] hover:text-white transition-all"
                 >
                   Login
                 </button>
                 <button
                   type="button"
                   onClick={() => openAuthModal('register')}
-                  className="bg-mindmap-accent text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-mindmap-accent/80 transition-colors"
+                  className="rounded-lg bg-mindmap-accent px-4 py-2 text-sm font-semibold text-white hover:bg-mindmap-accent/80 shadow-sm transition-all hover:shadow-md"
                 >
                   Register
                 </button>
@@ -153,8 +163,8 @@ export default function Navbar({ mode = 'dashboard' }: NavbarProps) {
       </nav>
 
       {authMode && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-mindmap-border/40 bg-mindmap-bg-primary p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 backdrop-blur-md">
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#1e2d4a] to-mindmap-bg-primary p-6 shadow-2xl">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-mindmap-accent">

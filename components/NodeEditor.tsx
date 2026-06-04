@@ -6,6 +6,10 @@ interface NodeEditorProps {
   value: string;
   onChange?: (value: string) => void;
   readOnly?: boolean;
+  textColor?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
   /** When true the input is shown immediately in edit mode */
   editing?: boolean;
   onEditingChange?: (editing: boolean) => void;
@@ -24,11 +28,21 @@ export default function NodeEditor({
   value,
   onChange,
   readOnly = false,
+  textColor = '#1e293b',
+  bold = false,
+  italic = false,
+  underline = false,
   editing = false,
   onEditingChange,
 }: NodeEditorProps) {
   const [draft, setDraft] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textStyle = {
+    color: textColor,
+    fontWeight: bold ? '700' : undefined,
+    fontStyle: italic ? 'italic' : undefined,
+    textDecoration: underline ? 'underline' : undefined,
+  };
 
   // Sync draft when value changes from outside
   useEffect(() => {
@@ -74,7 +88,7 @@ export default function NodeEditor({
 
   if (readOnly) {
     return (
-      <div className="px-3 py-2 min-w-[80px] max-w-[200px] text-sm font-medium text-center break-words leading-snug">
+      <div className="px-3 py-2 min-w-[80px] max-w-[200px] text-sm font-medium text-center break-words leading-snug" style={textStyle}>
         {value || 'Node'}
       </div>
     );
@@ -93,13 +107,13 @@ export default function NodeEditor({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         className="resize-none bg-transparent outline-none text-center text-sm font-medium w-full min-w-[80px] max-w-[200px] leading-snug overflow-hidden"
-        style={{ height: 'auto' }}
+        style={{ ...textStyle, height: 'auto' }}
       />
     );
   }
 
   return (
-    <div className="px-3 py-2 min-w-[80px] max-w-[200px] text-sm font-medium text-center break-words leading-snug select-none">
+    <div className="px-3 py-2 min-w-[80px] max-w-[200px] text-sm font-medium text-center break-words leading-snug select-none" style={textStyle}>
       {value || 'Node'}
     </div>
   );

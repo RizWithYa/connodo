@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import { supabase } from '@/lib/supabase';
+import type { Session } from '@supabase/supabase-js';
 
 const FEATURES = [
   {
@@ -36,6 +37,21 @@ const FEATURES = [
     icon: Globe,
     title: 'Export Anywhere',
     desc: 'Download as PNG, PDF, or JSON. Your mindmap, your preferred format.',
+  },
+];
+
+const COMPARISON = [
+  {
+    title: 'Guest Mode',
+    badge: 'Instant draft',
+    description: 'Best for quick ideas you do not need to keep.',
+    items: ['No account needed', 'Starts immediately', 'Not saved to database', 'No share links', 'Lost after refresh'],
+  },
+  {
+    title: 'Saved Account',
+    badge: 'For real work',
+    description: 'Best when the idea matters and needs to be kept.',
+    items: ['Auto-save enabled', 'Dashboard history', 'Role-based share links', 'Export anytime', 'Recover across devices'],
   },
 ];
 
@@ -78,30 +94,69 @@ function BranchDecoration() {
   );
 }
 
+function ProductPreview() {
+  return (
+    <div className="relative mx-auto mt-14 w-full max-w-4xl rounded-[2rem] border border-mindmap-border/30 bg-mindmap-bg-secondary/40 p-4 shadow-2xl shadow-black/20 backdrop-blur-sm animate-fade-in-up delay-400">
+      <div className="rounded-[1.5rem] border border-mindmap-border/30 bg-slate-950/80 p-5 overflow-hidden">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full bg-red-400" />
+            <span className="h-3 w-3 rounded-full bg-amber-300" />
+            <span className="h-3 w-3 rounded-full bg-emerald-400" />
+          </div>
+          <span className="rounded-full bg-amber-300/10 px-3 py-1 text-xs font-medium text-amber-200">
+            Guest draft
+          </span>
+        </div>
+        <div className="relative min-h-[320px] rounded-2xl p-8" style={{ backgroundColor: '#eef2f7' }}>
+          <svg className="absolute inset-0 h-full w-full opacity-30" viewBox="0 0 760 320" fill="none" style={{ color: '#94a3b8' }}>
+            <title>Connodo mindmap preview</title>
+            <path d="M380 158 C300 120 255 96 200 74" stroke="currentColor" strokeWidth="3" />
+            <path d="M380 158 C290 180 235 210 190 254" stroke="currentColor" strokeWidth="3" />
+            <path d="M380 158 C475 108 520 84 586 70" stroke="currentColor" strokeWidth="3" />
+            <path d="M380 158 C490 182 535 220 610 260" stroke="currentColor" strokeWidth="3" />
+          </svg>
+          {[
+            ['Map your thoughts', 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-blue-200 shadow-blue-100', '#ffffff', '#0f172a'],
+            ['Capture', 'left-[9%] top-[12%] border-yellow-200 shadow-yellow-100', '#fef9c3', '#0f172a'],
+            ['Connect', 'left-[8%] bottom-[12%] border-green-200 shadow-green-100', '#dcfce7', '#0f172a'],
+            ['Plan', 'right-[9%] top-[11%] border-blue-200 shadow-blue-100', '#dbeafe', '#0f172a'],
+            ['Share', 'right-[8%] bottom-[11%] border-purple-200 shadow-purple-100', '#f3e8ff', '#0f172a'],
+          ].map(([label, classes, bg, fg]) => (
+            <div
+              key={label}
+              className={`absolute rounded-2xl border px-5 py-3 text-sm font-semibold shadow-lg ${classes}`}
+              style={{ backgroundColor: bg, color: fg }}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
   const [showGuestWarning, setShowGuestWarning] = useState(false);
+  const isLoggedIn = !!session;
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        router.replace('/dashboard');
-      } else {
-        setChecking(false);
-      }
+      setSession(session);
+      setChecking(false);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        router.replace('/dashboard');
-      } else {
-        setChecking(false);
-      }
+      setSession(session);
+      setChecking(false);
     });
 
     return () => { subscription.unsubscribe(); };
-  }, [router]);
+  }, []);
 
   if (checking) {
     return (
@@ -129,27 +184,39 @@ export default function LandingPage() {
           <div className="relative z-10 text-center max-w-3xl mx-auto flex flex-col items-center gap-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-mindmap-border/40 bg-mindmap-bg-secondary/60 px-4 py-1.5 text-xs text-mindmap-text-muted backdrop-blur-sm animate-fade-in-up">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Free guest mode &middot; Sign in to save and share
+              Connodo &middot; A branching workspace for ideas
             </div>
 
             <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight text-mindmap-text-primary animate-fade-in-up delay-100">
-              Let Ideas
+              Map your thoughts
               <br />
-              <span className="text-white">Grow in Branches</span>
+              <span className="text-white">before they disappear</span>
             </h1>
 
             <p className="text-lg sm:text-xl text-mindmap-text-muted max-w-xl animate-fade-in-up delay-200">
-              Create beautiful mindmaps, branch thoughts in every direction, and save your best work when you are ready.
+              {isLoggedIn
+                ? 'Explore Connodo, then return to your saved workspace whenever you are ready.'
+                : 'Start instantly in Guest Mode. Save and share when your ideas matter.'}
             </p>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-4 animate-fade-in-up delay-300">
-              <button
-                type="button"
-                onClick={() => setShowGuestWarning(true)}
-                className="rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
-              >
-                Guest Mode <ArrowRight className="w-4 h-4" />
-              </button>
+              {isLoggedIn ? (
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard')}
+                  className="rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  Open Dashboard <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowGuestWarning(true)}
+                  className="rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  Guest Mode <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
               <a
                 href="#fitur"
                 className="rounded-xl border border-mindmap-border/50 px-8 py-4 text-base font-semibold text-mindmap-text-primary hover:bg-mindmap-accent/20 hover:text-white transition-all"
@@ -157,13 +224,48 @@ export default function LandingPage() {
                 See Features
               </a>
             </div>
+
+            {!isLoggedIn && (
+              <p className="max-w-md text-xs text-mindmap-text-muted animate-fade-in-up delay-400">
+                Guest drafts are temporary. Login or register to keep your maps, share access links, and continue later.
+              </p>
+            )}
           </div>
+
+          <ProductPreview />
 
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce opacity-30">
             <svg className="w-6 h-6 text-mindmap-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <title>Scroll down</title>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
+          </div>
+        </section>
+
+        <section className="relative px-6 pb-24">
+          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+            {COMPARISON.map((mode) => (
+              <div
+                key={mode.title}
+                className="rounded-3xl border border-mindmap-border/30 bg-mindmap-bg-secondary/50 p-7 hover:border-mindmap-accent/60 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-2xl font-bold text-mindmap-text-primary">{mode.title}</h2>
+                  <span className="rounded-full bg-mindmap-accent/20 px-3 py-1 text-xs font-semibold text-mindmap-text-primary">
+                    {mode.badge}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm text-mindmap-text-muted">{mode.description}</p>
+                <ul className="mt-6 space-y-3">
+                  {mode.items.map((item) => (
+                    <li key={item} className="flex items-center gap-3 text-sm text-mindmap-text-primary">
+                      <span className="h-1.5 w-1.5 rounded-full bg-mindmap-accent" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -174,7 +276,7 @@ export default function LandingPage() {
                 Simple, Fast, Focused
               </h2>
               <p className="mt-4 text-mindmap-text-muted max-w-lg mx-auto">
-                Everything you need to map ideas clearly, from quick sketches to structured plans.
+                Everything you need to map ideas clearly, from quick sketches to saved plans.
               </p>
             </div>
 
@@ -231,17 +333,19 @@ export default function LandingPage() {
         <section className="py-24 px-6">
           <div className="max-w-2xl mx-auto text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-mindmap-text-primary mb-4">
-              Ready to Map Freely?
+              Start with zero friction
             </h2>
             <p className="text-mindmap-text-muted mb-8 max-w-md mx-auto">
-              Use Guest Mode for a quick draft, or sign in to keep and share your mindmaps.
+              {isLoggedIn
+                ? 'You are signed in. Continue from your dashboard to keep every branch saved.'
+                : 'Try a temporary guest draft now. Create an account when you want to save the work.'}
             </p>
             <button
               type="button"
-              onClick={() => setShowGuestWarning(true)}
+              onClick={() => isLoggedIn ? router.push('/dashboard') : setShowGuestWarning(true)}
               className="inline-flex items-center gap-2 rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg transform hover:-translate-y-0.5"
             >
-              Continue as Guest <ArrowRight className="w-4 h-4" />
+              {isLoggedIn ? 'Open Dashboard' : 'Continue as Guest'} <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </section>
