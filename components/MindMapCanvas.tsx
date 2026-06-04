@@ -556,10 +556,11 @@ interface CanvasInnerProps {
   mapId: string;
   tokenColumn: 'owner_token' | 'edit_token' | 'view_token' | null;
   token: string | null;
-  role: AccessRole;
+  accessRole: AccessRole;
+  guestMode?: boolean;
   }
 
-  function CanvasInner({ mapId, tokenColumn, token, role }: CanvasInnerProps) {
+  function CanvasInner({ mapId, tokenColumn, token, accessRole, guestMode = false }: CanvasInnerProps) {
   const router = useRouter();
 
   const [nodes, setNodes] = useState<MindMapNode[]>([]);
@@ -638,7 +639,8 @@ interface CanvasInnerProps {
 
   const { screenToFlowPosition, fitView } = useReactFlow<MindMapNode, MindMapEdge>();
 
-  const canEdit = role === 'owner' || role === 'editor';
+  const role = accessRole;
+  const canEdit = guestMode || role === 'owner' || role === 'editor';
   const readOnly = !canEdit;
 
   const [isPresentationMode, setIsPresentationMode] = useState(false);
@@ -667,6 +669,20 @@ interface CanvasInnerProps {
       searchInputRef.current.focus();
     }
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (!guestMode) return;
+
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', warnBeforeUnload);
+    };
+  }, [guestMode]);
 
   const closeSearch = useCallback(() => {
     setIsSearchOpen(false);
@@ -728,6 +744,20 @@ interface CanvasInnerProps {
       setError(null);
 
       try {
+        if (guestMode) {
+          setTitle('Guest Mindmap');
+          setNodes([
+            {
+              id: 'node-root',
+              type: 'mindmap',
+              position: { x: 0, y: 0 },
+              data: { label: 'Start here', color: '#fef08a' },
+            },
+          ]);
+          setEdges([]);
+          return;
+        }
+
         // 1. Resolve the token (URL props vs localStorage)
         let activeColumn = tokenColumn;
         let activeToken = token;
@@ -796,7 +826,7 @@ interface CanvasInnerProps {
 
     loadMap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapId]);
+  }, [mapId, guestMode]);
 
   // -------------------------------------------------------------------------
   // Auto-fit on initial load — once only, with smooth animation
@@ -837,6 +867,8 @@ interface CanvasInnerProps {
   // -------------------------------------------------------------------------
   const persistSave = useCallback(
     async (nodesToSave: MindMapNode[], edgesToSave: MindMapEdge[]) => {
+      if (guestMode) return;
+
       setSaveStatus('saving');
       try {
         const client = token ? createTokenClient(token) : supabase;
@@ -867,7 +899,7 @@ interface CanvasInnerProps {
         setSaveStatus('error');
       }
     },
-    [mapId, tokenColumn, token]
+    [mapId, tokenColumn, token, guestMode]
   );
 
   const debouncedSave = useDebounce(persistSave, 1500);
@@ -1359,15 +1391,21 @@ interface CanvasInnerProps {
         <MapTitle
           mapId={mapId}
           initialTitle={title}
-          canRename={role === 'owner'}
+          canRename={role === 'owner' && !guestMode}
           ownerToken={role === 'owner' ? token : null}
         />
+      )}
+
+      {guestMode && !isPresentationMode && (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">
+          Guest Mode is temporary. This map is not saved, cannot be shared, and will be lost when you refresh or leave this page.
+        </div>
       )}
 
       {!isPresentationMode && (
         <Toolbar
           canEdit={canEdit}
-          isOwner={role === 'owner'}
+          isOwner={role === 'owner' && !guestMode}
           onAddNode={handleAddNode}
           onDeleteSelected={handleDeleteSelected}
           onShare={() => setShowSharePanel(true)}
@@ -1381,6 +1419,7 @@ interface CanvasInnerProps {
           canRedo={canRedo}
           isPresentationMode={isPresentationMode}
           onTogglePresentation={() => setIsPresentationMode((p) => !p)}
+          commentsEnabled={!guestMode}
           commentMode={commentMode}
           onToggleCommentMode={() => {
             setCommentMode((prev) => {
@@ -1457,14 +1496,15 @@ interface CanvasInnerProps {
         )}
 
         <div className="absolute top-3 left-3 z-10 px-2 py-1 rounded-md bg-white/80 border border-slate-200 text-xs text-slate-500 backdrop-blur-sm pointer-events-none">
-          {role === 'owner' && '👑 Owner'}
-          {role === 'editor' && '✏️ Editor'}
-          {role === 'viewer' && '👁 View only'}
+          {guestMode && '⚠️ Guest Mode'}
+          {!guestMode && role === 'owner' && '👑 Owner'}
+          {!guestMode && role === 'editor' && '✏️ Editor'}
+          {!guestMode && role === 'viewer' && '👁 View only'}
         </div>
       </div>
 
       {/* Share panel — owner only */}
-      {showSharePanel && role === 'owner' && !isPresentationMode && (
+      {showSharePanel && role === 'owner' && !guestMode && !isPresentationMode && (
         <SharePanel
           mapId={mapId}
           viewToken={viewToken}
@@ -1507,7 +1547,8 @@ export interface MindMapCanvasProps {
   mapId: string;
   tokenColumn: 'owner_token' | 'edit_token' | 'view_token' | null;
   token: string | null;
-  role: AccessRole;
+  accessRole: AccessRole;
+  guestMode?: boolean;
 }
 
 export default function MindMapCanvas(props: MindMapCanvasProps) {

@@ -50,7 +50,7 @@ export default async function MapPage({
     <main className="w-screen h-screen overflow-hidden bg-slate-50 pt-14">
       <MindMapCanvas
         mapId={mapId}
-        role={role}
+        accessRole={role}
         token={token}
         tokenColumn={tokenColumn}
       />

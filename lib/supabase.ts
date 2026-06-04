@@ -1,15 +1,25 @@
-import { createClient } from '@supabase/supabase-js';
 import type { Session } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+function requireEnv(name: string, value: string | undefined) {
+  if (!value) {
+    throw new Error(
+      'Missing Supabase environment variables. ' +
+      'Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set in .env.local'
+    );
+  }
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables. ' +
-    'Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set in .env.local'
-  );
+  return value;
 }
+
+const supabaseUrl = requireEnv(
+  'NEXT_PUBLIC_SUPABASE_URL',
+  process.env.NEXT_PUBLIC_SUPABASE_URL
+);
+const supabaseAnonKey = requireEnv(
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -67,13 +77,12 @@ export async function getSession(): Promise<Session | null> {
   return session ?? null;
 }
 
-export async function signInWithGoogle() {
-  return supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: process.env.NEXT_PUBLIC_SITE_URL + '/auth/callback',
-    },
-  });
+export async function signInWithEmail(email: string, password: string) {
+  return supabase.auth.signInWithPassword({ email, password });
+}
+
+export async function signUpWithEmail(email: string, password: string) {
+  return supabase.auth.signUp({ email, password });
 }
 
 export async function signOut() {

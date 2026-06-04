@@ -18,6 +18,7 @@ interface ToolbarProps {
   canRedo?: boolean;
   isPresentationMode?: boolean;
   onTogglePresentation?: () => void;
+  commentsEnabled?: boolean;
   commentMode?: boolean;
   onToggleCommentMode?: () => void;
 }
@@ -38,6 +39,7 @@ export default function Toolbar({
   canRedo = false,
   isPresentationMode = false,
   onTogglePresentation,
+  commentsEnabled = true,
   commentMode = false,
   onToggleCommentMode,
 }: ToolbarProps) {
@@ -123,13 +125,15 @@ export default function Toolbar({
       )}
 
       {/* Comment Mode Toggle */}
-      <button
-        onClick={onToggleCommentMode}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 transition-colors"
-        title={commentMode ? 'Exit comment mode' : 'Comment mode'}
-      >
-        {commentMode ? '💬 Comments ✓' : '💬 Comments'}
-      </button>
+      {commentsEnabled && (
+        <button
+          onClick={onToggleCommentMode}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 transition-colors"
+          title={commentMode ? 'Exit comment mode' : 'Comment mode'}
+        >
+          {commentMode ? '💬 Comments ✓' : '💬 Comments'}
+        </button>
+      )}
 
       {/* Presentation Mode Toggle */}
       <button

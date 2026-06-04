@@ -1,3 +1,5 @@
+import { getClientBaseUrl } from '@/lib/appUrl';
+
 /**
  * tokenUtils.ts
  *
@@ -80,10 +82,7 @@ export function buildShareLinks(
   editToken: string,
   ownerToken: string
 ): { viewUrl: string; editUrl: string; ownerUrl: string } {
-  const base =
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : process.env.NEXT_PUBLIC_APP_URL ?? '';
+  const base = getClientBaseUrl();
 
   return {
     viewUrl:  `${base}/map/${mapId}?view=${viewToken}`,

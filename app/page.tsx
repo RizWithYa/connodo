@@ -1,612 +1,289 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { ArrowRight, GitBranch, Globe, Layers, Share2, Shield, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { Session } from '@supabase/supabase-js';
-import { supabase, createTokenClient, onAuthStateChange } from '@/lib/supabase';
+import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
-import { TEMPLATES } from '@/lib/templates';
-import type { TemplateData } from '@/lib/templates';
-import TemplateDropdown from '@/components/TemplateDropdown';
-interface OwnedMap {
-  id: string;
-  ownerToken: string;
-  title: string;
-  updatedAt: string;
-  viewToken: string;
-  thumbnail?: string;
-}
+import { supabase } from '@/lib/supabase';
 
-// ── Inline Title Component ────────────────────────────────────────────────
-function InlineRenameTitle({
-  mapId,
-  ownerToken,
-  initialTitle,
-  onRenameOptimistic,
-  session,
-}: {
-  mapId: string;
-  ownerToken: string;
-  initialTitle: string;
-  onRenameOptimistic: (id: string, newTitle: string) => void;
-  session: Session | null;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState(initialTitle);
+const FEATURES = [
+  {
+    icon: GitBranch,
+    title: 'Free Branching',
+    desc: 'Drag, connect, and arrange nodes from every side. Let ideas grow like living branches.',
+  },
+  {
+    icon: Share2,
+    title: 'Instant Sharing',
+    desc: 'Share saved maps with view, edit, or owner links. Guest maps stay private and temporary.',
+  },
+  {
+    icon: Layers,
+    title: 'Ready Templates',
+    desc: 'Start from a blank canvas or use templates for SWOT, brainstorming, projects, and more.',
+  },
+  {
+    icon: Zap,
+    title: 'Auto Sync',
+    desc: 'Signed-in maps save automatically every 1.5 seconds. No save button needed.',
+  },
+  {
+    icon: Shield,
+    title: 'Access Control',
+    desc: 'Database-level RLS protects saved maps with unique tokens for every access level.',
+  },
+  {
+    icon: Globe,
+    title: 'Export Anywhere',
+    desc: 'Download as PNG, PDF, or JSON. Your mindmap, your preferred format.',
+  },
+];
 
-  useEffect(() => {
-    setTitle(initialTitle);
-  }, [initialTitle]);
-
-  async function save() {
-    setEditing(false);
-    const newTitle = title.trim() || 'Untitled Map';
-    setTitle(newTitle);
-    if (newTitle === initialTitle) return;
-
-    // Optimistic update
-    onRenameOptimistic(mapId, newTitle);
-
-    try {
-      if (session) {
-        // Authenticated: use supabase directly (RLS uses auth.uid())
-        const { error } = await supabase
-          .from('mindmaps')
-          .update({ title: newTitle, updated_at: new Date().toISOString() })
-          .eq('id', mapId);
-        if (error) throw error;
-      } else {
-        // Anon: use token client
-        const client = createTokenClient(ownerToken);
-        const { error } = await client
-          .from('mindmaps')
-          .update({ title: newTitle, updated_at: new Date().toISOString() })
-          .eq('id', mapId)
-          .eq('owner_token', ownerToken);
-        if (error) throw error;
-      }
-    } catch (err) {
-      console.error('Failed to rename map:', err);
-      // Revert on error
-      setTitle(initialTitle);
-      onRenameOptimistic(mapId, initialTitle);
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      save();
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      setTitle(initialTitle);
-      setEditing(false);
-    }
-  }
-
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={save}
-        onKeyDown={handleKeyDown}
-        className="w-full bg-mindmap-bg-secondary text-mindmap-text-primary font-semibold text-lg border border-mindmap-accent rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-mindmap-text-muted mb-1"
-      />
-    );
-  }
-
+function BranchDecoration() {
   return (
-    <h3
-      onClick={() => setEditing(true)}
-      className="font-semibold text-mindmap-text-primary truncate mb-1 text-lg cursor-text hover:text-white transition-colors"
-      title="Click to rename"
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06]"
+      viewBox="0 0 800 600"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
     >
-      {title}
-    </h3>
+      <title>Decorative branching mindmap lines</title>
+      <path d="M400 580 L400 200" stroke="currentColor" strokeWidth="3" className="animate-draw-line" />
+      <path d="M400 380 L280 280" stroke="currentColor" strokeWidth="2" className="animate-draw-line delay-200" />
+      <path d="M400 380 L520 280" stroke="currentColor" strokeWidth="2" className="animate-draw-line delay-200" />
+      <path d="M400 280 L320 180" stroke="currentColor" strokeWidth="2" className="animate-draw-line delay-400" />
+      <path d="M400 280 L480 180" stroke="currentColor" strokeWidth="2" className="animate-draw-line delay-400" />
+      <path d="M280 280 L200 220" stroke="currentColor" strokeWidth="1.5" className="animate-draw-line delay-600" />
+      <path d="M280 280 L260 200" stroke="currentColor" strokeWidth="1.5" className="animate-draw-line delay-600" />
+      <path d="M520 280 L580 220" stroke="currentColor" strokeWidth="1.5" className="animate-draw-line delay-600" />
+      <path d="M520 280 L540 200" stroke="currentColor" strokeWidth="1.5" className="animate-draw-line delay-600" />
+      <path d="M320 180 L260 110" stroke="currentColor" strokeWidth="1" className="animate-draw-line delay-700" />
+      <path d="M320 180 L360 110" stroke="currentColor" strokeWidth="1" className="animate-draw-line delay-700" />
+      <path d="M480 180 L440 110" stroke="currentColor" strokeWidth="1" className="animate-draw-line delay-700" />
+      <path d="M480 180 L540 110" stroke="currentColor" strokeWidth="1" className="animate-draw-line delay-700" />
+      <circle cx="400" cy="200" r="6" fill="currentColor" className="animate-pulse-glow" />
+      <circle cx="280" cy="280" r="5" fill="currentColor" className="animate-pulse-glow delay-200" />
+      <circle cx="520" cy="280" r="5" fill="currentColor" className="animate-pulse-glow delay-200" />
+      <circle cx="320" cy="180" r="4" fill="currentColor" className="animate-pulse-glow delay-400" />
+      <circle cx="480" cy="180" r="4" fill="currentColor" className="animate-pulse-glow delay-400" />
+      <circle cx="200" cy="220" r="3" fill="currentColor" className="animate-pulse-glow delay-600" />
+      <circle cx="260" cy="200" r="3" fill="currentColor" className="animate-pulse-glow delay-600" />
+      <circle cx="580" cy="220" r="3" fill="currentColor" className="animate-pulse-glow delay-600" />
+      <circle cx="540" cy="200" r="3" fill="currentColor" className="animate-pulse-glow delay-600" />
+      <circle cx="260" cy="110" r="2.5" fill="currentColor" className="animate-pulse-glow delay-700" />
+      <circle cx="360" cy="110" r="2.5" fill="currentColor" className="animate-pulse-glow delay-700" />
+      <circle cx="440" cy="110" r="2.5" fill="currentColor" className="animate-pulse-glow delay-700" />
+      <circle cx="540" cy="110" r="2.5" fill="currentColor" className="animate-pulse-glow delay-700" />
+    </svg>
   );
 }
 
-/**
- * Homepage — "Create New Map" button + card grid of previously created maps.
- *
- * Reads localStorage keys matching `mindmap_owned_[id]`, fetches metadata
- * from Supabase via createTokenClient(owner_token), and renders a card grid.
- */
-export default function HomePage() {
+export default function LandingPage() {
   const router = useRouter();
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [maps, setMaps] = useState<OwnedMap[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const isLoggedIn = !!session;
-  const [migrated, setMigrated] = useState(false);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const templateBtnRef = useRef<HTMLButtonElement>(null);
-  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [showGuestWarning, setShowGuestWarning] = useState(false);
 
-  // Load owned maps from localStorage + Supabase
-  const loadMaps = useCallback(async () => {
-    setLoading(true);
-    try {
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        // AUTHENTICATED: fetch by user_id
-        const { data, error } = await supabase
-          .from('mindmaps')
-          .select('id, title, updated_at, view_token, owner_token')
-          .eq('user_id', session.user.id)
-          .order('updated_at', { ascending: false });
-
-        if (!error && data) {
-          const results: OwnedMap[] = data.map((row) => ({
-            id: row.id,
-            ownerToken: row.owner_token,
-            title: row.title,
-            updatedAt: row.updated_at,
-            viewToken: row.view_token,
-            thumbnail: localStorage.getItem('mindmap_thumb_' + row.id) || undefined,
-          }));
-          setMaps(results);
-        } else {
-          console.error('Failed to load authenticated maps:', error);
-          setMaps([]);
-        }
+        router.replace('/dashboard');
       } else {
-        // ANON: localStorage-based
-        const entries: { id: string; ownerToken: string }[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('mindmap_owned_')) {
-            const id = key.replace('mindmap_owned_', '');
-            const ownerToken = localStorage.getItem(key);
-            if (ownerToken) entries.push({ id, ownerToken });
-          }
-        }
-
-        if (entries.length === 0) {
-          setMaps([]);
-          setLoading(false);
-          return;
-        }
-
-        const results: OwnedMap[] = [];
-        await Promise.all(
-          entries.map(async ({ id, ownerToken }) => {
-            const client = createTokenClient(ownerToken);
-            const { data, error } = await client
-              .from('mindmaps')
-              .select('title, updated_at, view_token')
-              .eq('id', id)
-              .single();
-
-            if (!error && data) {
-              const thumbnail = localStorage.getItem('mindmap_thumb_' + id) || undefined;
-              results.push({ id, ownerToken, title: data.title, updatedAt: data.updated_at, viewToken: data.view_token, thumbnail });
-            } else {
-              localStorage.removeItem('mindmap_owned_' + id);
-            }
-          })
-        );
-
-        results.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-        setMaps(results);
-      }
-    } catch (e) {
-      console.error('Failed to load maps:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [session]);
-
-  // Close templates dropdown on click outside
-  useEffect(() => {
-    if (!showTemplates) return;
-    function handleGlobalClick() {
-      setShowTemplates(false);
-    }
-    const timer = setTimeout(() => {
-      window.addEventListener('click', handleGlobalClick);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('click', handleGlobalClick);
-    };
-  }, [showTemplates]);
-  // Auth state listener
-  useEffect(() => {
-    const { data: { subscription } } = onAuthStateChange((newSession) => {
-      setSession(newSession);
-      if (!newSession) {
-        setMigrated(false);
+        setChecking(false);
       }
     });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.replace('/dashboard');
+      } else {
+        setChecking(false);
+      }
+    });
+
     return () => { subscription.unsubscribe(); };
-  }, []);
+  }, [router]);
 
-  // 1. One-time migration of "connodo" keys back to "mindmap" keys in localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const keysToMigrate: { key: string; newKey: string; value: string }[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) {
-          if (key.startsWith('connodo_owned_')) {
-            const newKey = 'mindmap_owned_' + key.substring('connodo_owned_'.length);
-            const val = localStorage.getItem(key);
-            if (val) keysToMigrate.push({ key, newKey, value: val });
-          } else if (key.startsWith('connodo_thumb_')) {
-            const newKey = 'mindmap_thumb_' + key.substring('connodo_thumb_'.length);
-            const val = localStorage.getItem(key);
-            if (val) keysToMigrate.push({ key, newKey, value: val });
-          }
-        }
-      }
-      for (const { key, newKey, value } of keysToMigrate) {
-        localStorage.setItem(newKey, value);
-        localStorage.removeItem(key);
-      }
-    } catch (e) {
-      console.error('Failed to migrate Connodo localStorage keys to MindMap:', e);
-    }
-  }, []);
-
-  // 2. Migration of anonymous local maps to Supabase user account on login
-  useEffect(() => {
-    const userId = session?.user?.id;
-    if (!isLoggedIn || migrated || !userId) return;
-
-    async function migrateLocalMaps() {
-      const keysToMigrate: { id: string; ownerToken: string }[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('mindmap_owned_')) {
-          const id = key.replace('mindmap_owned_', '');
-          const ownerToken = localStorage.getItem(key);
-          if (ownerToken) keysToMigrate.push({ id, ownerToken });
-        }
-      }
-
-      if (keysToMigrate.length === 0) {
-        setMigrated(true);
-        return;
-      }
-
-      for (const { id, ownerToken } of keysToMigrate) {
-        try {
-          const client = createTokenClient(ownerToken);
-          const { data, error } = await client
-            .from('mindmaps')
-            .select('user_id')
-            .eq('id', id)
-            .single();
-
-          if (!error && data && data.user_id === null) {
-            await supabase
-              .from('mindmaps')
-              .update({ user_id: userId })
-              .eq('id', id)
-              .eq('owner_token', ownerToken);
-            localStorage.removeItem('mindmap_owned_' + id);
-          } else if (error || !data) {
-            localStorage.removeItem('mindmap_owned_' + id);
-          }
-        } catch (e) {
-          console.error('Migration failed for map', id, e);
-        }
-      }
-
-      setMigrated(true);
-      loadMaps();
-    }
-
-    migrateLocalMaps();
-  }, [isLoggedIn, migrated, session, loadMaps]);
-
-
-
-  useEffect(() => {
-    loadMaps();
-  }, [loadMaps]);
-
-  // ── Create a new map ──────────────────────────────────────────────────
-  async function handleCreate(template?: TemplateData) {
-    setCreating(true);
-    setCreateError(null);
-
-    try {
-      const newId = crypto.randomUUID();
-      const newOwnerToken = crypto.randomUUID();
-      const newEditToken = crypto.randomUUID();
-      const newViewToken = crypto.randomUUID();
-
-      // Use the default client for INSERT — do NOT chain .select()
-      const { error } = await supabase
-        .from('mindmaps')
-        .insert({
-          id: newId,
-          title: template ? template.label : 'Untitled Map',
-          owner_token: newOwnerToken,
-          edit_token: newEditToken,
-          view_token: newViewToken,
-          ...(template ? { nodes: template.nodes, edges: template.edges } : {}),
-        });
-
-      if (error) {
-        console.error('Create failed:', error);
-        setCreateError('Could not create map. Please try again.');
-        return;
-      }
-
-      if (!session) {
-        localStorage.setItem('mindmap_owned_' + newId, newOwnerToken);
-      }
-      router.push('/map/' + newId + '?owner=' + newOwnerToken);
-    } catch (e) {
-      console.error('Create exception:', e);
-      setCreateError('Unexpected error. Please try again.');
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  // Delete a map from Supabase + localStorage
-  async function handleDelete(id: string, ownerToken: string) {
-    setDeletingId(id);
-    try {
-      if (session) {
-        // Authenticated: use supabase directly (RLS checks auth.uid())
-        const { error } = await supabase
-          .from('mindmaps')
-          .delete()
-          .eq('id', id);
-        if (error) { console.error('Delete failed:', error); return; }
-      } else {
-        // Anon: use token client
-        const client = createTokenClient(ownerToken);
-        const { error } = await client
-          .from('mindmaps')
-          .delete()
-          .eq('id', id);
-        if (error) { console.error('Delete failed:', error); return; }
-        localStorage.removeItem('mindmap_owned_' + id);
-      }
-      setMaps((prev) => prev.filter((m) => m.id !== id));
-    } catch (e) {
-      console.error('Delete exception:', e);
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  // Duplicate a map
-  async function handleDuplicate(mapId: string, ownerToken: string) {
-    setDuplicatingId(mapId);
-    try {
-      const client = session ? supabase : createTokenClient(ownerToken);
-      const { data, error } = await client
-        .from('mindmaps')
-        .select('title, nodes, edges')
-        .eq('id', mapId)
-        .single();
-
-      if (error || !data) {
-        console.error('Failed to fetch map for duplication:', error);
-        return;
-      }
-
-      const newId = crypto.randomUUID();
-      const newOwnerToken = crypto.randomUUID();
-      const newEditToken = crypto.randomUUID();
-      const newViewToken = crypto.randomUUID();
-
-      const insertData: Record<string, unknown> = {
-        id: newId,
-        title: data.title + ' (copy)',
-        nodes: data.nodes,
-        edges: data.edges,
-        owner_token: newOwnerToken,
-        edit_token: newEditToken,
-        view_token: newViewToken,
-      };
-
-      if (session) {
-        insertData.user_id = session.user.id;
-      }
-
-      const { error: insertError } = await supabase
-        .from('mindmaps')
-        .insert(insertData);
-
-      if (insertError) {
-        console.error('Duplicate failed:', insertError);
-        return;
-      }
-
-      if (!session) {
-        localStorage.setItem('mindmap_owned_' + newId, newOwnerToken);
-      }
-
-      loadMaps();
-    } catch (e) {
-      console.error('Duplicate exception:', e);
-    } finally {
-      setDuplicatingId(null);
-    }
-  }
-
-  const handleRenameOptimistic = useCallback((id: string, newTitle: string) => {
-    setMaps((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, title: newTitle } : m))
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-mindmap-bg-primary flex items-center justify-center">
+        <p className="text-mindmap-text-muted animate-pulse text-sm">Loading…</p>
+      </div>
     );
-  }, []);
-
-  // ── Format ISO date for display ───────────────────────────────────────
-  function formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   }
 
-  // ── Render ────────────────────────────────────────────────────────────
   return (
     <>
-      <Navbar />
-    <main className="min-h-screen bg-mindmap-bg-secondary pt-14">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-mindmap-bg-primary py-24 sm:py-32 px-6 flex flex-col items-center justify-center">
-        {/* Subtle animated blobs background */}
-        <div className="absolute top-0 left-1/2 w-full max-w-5xl -translate-x-1/2 h-full overflow-hidden pointer-events-none opacity-40">
-          <div className="absolute top-10 left-10 w-64 h-64 bg-mindmap-accent rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob" />
-          <div className="absolute top-0 right-20 w-72 h-72 bg-mindmap-text-muted rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
-          <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-mindmap-bg-secondary rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
-        </div>
+      <Navbar mode="landing" />
+      <main className="min-h-screen bg-mindmap-bg-primary">
+        <section className="relative overflow-hidden min-h-[90vh] flex flex-col items-center justify-center px-6">
+          <div className="absolute inset-0 text-mindmap-accent">
+            <BranchDecoration />
+          </div>
 
-        <div className="relative z-10 text-center max-w-2xl mx-auto flex flex-col items-center gap-6">
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-mindmap-text-primary">
-            MindMap
-          </h1>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white">
-            Think freely. Share instantly.
-          </h2>
-          <p className="text-lg sm:text-xl text-mindmap-text-muted max-w-xl mx-auto">
-            Create beautiful mindmaps and share them with anyone — no account required.
-          </p>
+          <div className="absolute top-0 left-1/2 w-full max-w-5xl -translate-x-1/2 h-full overflow-hidden pointer-events-none opacity-30">
+            <div className="absolute top-10 left-10 w-64 h-64 bg-mindmap-accent rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob" />
+            <div className="absolute top-0 right-20 w-72 h-72 bg-mindmap-text-muted rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-2000" />
+            <div className="absolute -bottom-10 left-1/3 w-80 h-80 bg-mindmap-accent rounded-full mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000" />
+          </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
-            <button
-              onClick={() => handleCreate()}
-              disabled={creating}
-              className="rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
-            >
-              {creating ? 'Creating…' : '+ Create New Map'}
-            </button>
-
-            <div>
-              <button
-                ref={templateBtnRef}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowTemplates(!showTemplates);
-                }}
-                disabled={creating}
-                className="rounded-xl bg-mindmap-accent px-6 py-3 text-sm font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5 flex items-center gap-1.5"
-              >
-                New from Template {showTemplates ? '▲' : '▼'}
-              </button>
-              {showTemplates && (
-                <TemplateDropdown
-                  triggerEl={templateBtnRef.current}
-                  onSelectTemplate={(tmpl) => {
-                    setShowTemplates(false);
-                    handleCreate(tmpl);
-                  }}
-                  onClose={() => setShowTemplates(false)}
-                />
-              )}
+          <div className="relative z-10 text-center max-w-3xl mx-auto flex flex-col items-center gap-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-mindmap-border/40 bg-mindmap-bg-secondary/60 px-4 py-1.5 text-xs text-mindmap-text-muted backdrop-blur-sm animate-fade-in-up">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Free guest mode &middot; Sign in to save and share
             </div>
-          {createError && (
-            <p className="text-red-400 text-sm text-center mt-2">{createError}</p>
-          )}
-        </div>
-        </div>
-      </section>
 
-      {/* Map List Section */}
-      <section className="max-w-5xl mx-auto p-8">
-        <h2 className="text-2xl font-bold text-mindmap-text-primary mb-6">Your Maps</h2>
+            <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight text-mindmap-text-primary animate-fade-in-up delay-100">
+              Let Ideas
+              <br />
+              <span className="text-white">Grow in Branches</span>
+            </h1>
 
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <p className="text-mindmap-text-muted text-sm animate-pulse">Loading your maps…</p>
-          </div>
-        ) : maps.length === 0 ? (
-          <div className="flex justify-center py-12">
-            <p className="text-mindmap-text-muted text-sm">
-              No maps yet. Create your first one!
+            <p className="text-lg sm:text-xl text-mindmap-text-muted max-w-xl animate-fade-in-up delay-200">
+              Create beautiful mindmaps, branch thoughts in every direction, and save your best work when you are ready.
             </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {maps.map((map) => (
-              <div
-                className="flex flex-col rounded-xl bg-mindmap-bg-primary border border-mindmap-border/30 shadow-lg hover:shadow-xl transition-all hover:border-mindmap-accent overflow-hidden"
-              >
-                {map.thumbnail ? (
-                  <img
-                    src={map.thumbnail}
-                    alt=""
-                    className="w-full h-[120px] object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-[120px] bg-mindmap-bg-primary border-b border-mindmap-border/30 flex items-center justify-center shrink-0">
-                    <span className="text-mindmap-accent text-xs font-medium opacity-50">No Preview</span>
-                  </div>
-                )}
 
-                <div className="p-5 flex flex-col flex-1">
-                  <InlineRenameTitle
-                    mapId={map.id}
-                    ownerToken={map.ownerToken}
-                    initialTitle={map.title}
-                    onRenameOptimistic={handleRenameOptimistic}
-                    session={session}
-                  />
-                  <p className="text-xs text-mindmap-text-muted mb-5">
-                    Updated {formatDate(map.updatedAt)}
-                  </p>
-                  <div className="flex gap-2 mt-auto">
-                    <button
-                      onClick={() =>
-                        router.push(`/map/${map.id}?owner=${map.ownerToken}`)
-                      }
-                      className="flex-1 rounded-lg bg-mindmap-accent px-3 py-2 text-xs font-medium text-white hover:bg-mindmap-accent/80 transition-colors shadow-sm flex items-center justify-center gap-1"
-                    >
-                      Open &rarr;
-                    </button>
-                    <button
-                      onClick={() =>
-                        window.open(`/map/${map.id}?view=${map.viewToken}`, '_blank')
-                      }
-                      className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-2 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm flex items-center justify-center gap-1"
-                      title="Preview as Viewer"
-                    >
-                      Preview 🔍
-                    </button>
-                    <button
-                      onClick={() => handleDuplicate(map.id, map.ownerToken)}
-                      disabled={duplicatingId === map.id}
-                      className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-1.5 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm disabled:opacity-50"
-                      title="Duplicate Map"
-                    >
-                      {duplicatingId === map.id ? '...' : '📋'}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(map.id, map.ownerToken)}
-                      disabled={deletingId === map.id}
-                      className="rounded-lg border border-red-500/30 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                      title="Delete Map"
-                    >
-                      {deletingId === map.id ? '...' : '🗑'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-4 animate-fade-in-up delay-300">
+              <button
+                type="button"
+                onClick={() => setShowGuestWarning(true)}
+                className="rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2"
+              >
+                Guest Mode <ArrowRight className="w-4 h-4" />
+              </button>
+              <a
+                href="#fitur"
+                className="rounded-xl border border-mindmap-border/50 px-8 py-4 text-base font-semibold text-mindmap-text-primary hover:bg-mindmap-accent/20 hover:text-white transition-all"
+              >
+                See Features
+              </a>
+            </div>
           </div>
-        )}
-      </section>
-    </main>
+
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce opacity-30">
+            <svg className="w-6 h-6 text-mindmap-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <title>Scroll down</title>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </div>
+        </section>
+
+        <section id="fitur" className="relative py-24 px-6">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl sm:text-4xl font-bold text-mindmap-text-primary">
+                Simple, Fast, Focused
+              </h2>
+              <p className="mt-4 text-mindmap-text-muted max-w-lg mx-auto">
+                Everything you need to map ideas clearly, from quick sketches to structured plans.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {FEATURES.map((feat) => {
+                const Icon = feat.icon;
+                return (
+                  <div
+                    key={feat.title}
+                    className="rounded-2xl border border-mindmap-border/30 bg-mindmap-bg-secondary/50 p-6 hover:border-mindmap-accent/60 hover:bg-mindmap-bg-secondary transition-all group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-mindmap-accent/20 flex items-center justify-center mb-4 group-hover:bg-mindmap-accent/30 transition-colors">
+                      <Icon className="w-5 h-5 text-mindmap-accent" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-mindmap-text-primary mb-2">
+                      {feat.title}
+                    </h3>
+                    <p className="text-sm text-mindmap-text-muted leading-relaxed">
+                      {feat.desc}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-24 px-6 bg-mindmap-bg-secondary/30">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl sm:text-4xl font-bold text-mindmap-text-primary text-center mb-16">
+              How It Works
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 relative">
+              <div className="hidden sm:block absolute top-10 left-[20%] right-[20%] h-px bg-mindmap-border/40" />
+
+              {[
+                { step: '01', title: 'Start as Guest', desc: 'Try the canvas instantly. Nothing is saved and the map disappears after refresh.' },
+                { step: '02', title: 'Branch Your Ideas', desc: 'Drag nodes, connect branches, style shapes, and arrange your thinking freely.' },
+                { step: '03', title: 'Sign In to Save', desc: 'Create an account when you want auto-save, dashboard history, and share links.' },
+              ].map((s) => (
+                <div key={s.step} className="relative text-center flex flex-col items-center gap-3">
+                  <div className="relative z-10 w-12 h-12 rounded-full bg-mindmap-bg-primary border-2 border-mindmap-accent flex items-center justify-center text-mindmap-accent font-bold text-sm">
+                    {s.step}
+                  </div>
+                  <h3 className="text-lg font-semibold text-mindmap-text-primary">{s.title}</h3>
+                  <p className="text-sm text-mindmap-text-muted max-w-xs">{s.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-24 px-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold text-mindmap-text-primary mb-4">
+              Ready to Map Freely?
+            </h2>
+            <p className="text-mindmap-text-muted mb-8 max-w-md mx-auto">
+              Use Guest Mode for a quick draft, or sign in to keep and share your mindmaps.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowGuestWarning(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-mindmap-accent px-8 py-4 text-base font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg transform hover:-translate-y-0.5"
+            >
+              Continue as Guest <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </section>
+
+        <footer className="border-t border-mindmap-border/30 py-8 px-6 text-center">
+          <p className="text-xs text-mindmap-text-muted">
+            &copy; {new Date().getFullYear()} MindMap &middot; Built for branching thoughts.
+          </p>
+        </footer>
+      </main>
+
+      {showGuestWarning && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-mindmap-border/40 bg-mindmap-bg-primary p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
+              Guest Mode
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-mindmap-text-primary">
+              This map will not be saved
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-mindmap-text-muted">
+              Guest Mode is temporary. Your mindmap will not be stored in the database, cannot be shared with a URL, and will disappear if you refresh or leave the page.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowGuestWarning(false)}
+                className="rounded-xl border border-mindmap-border/50 px-4 py-3 text-sm font-semibold text-mindmap-text-primary hover:bg-mindmap-accent/20 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/guest')}
+                className="rounded-xl bg-mindmap-accent px-4 py-3 text-sm font-semibold text-white hover:bg-mindmap-accent/80 transition-colors"
+              >
+                I Understand, Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

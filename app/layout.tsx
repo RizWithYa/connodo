@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: 'MindMap',
-  description: 'A frictionless, lightweight web-based mind-mapping application.',
+  title: 'MindMap — Create and Share Mindmaps',
+  description: 'Create beautiful mindmaps, branch ideas freely, and save or share your best work when you sign in.',
 };
 
 export default function RootLayout({

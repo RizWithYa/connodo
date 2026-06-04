@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS mindmaps (
   updated_at   TIMESTAMPTZ NOT NULL    DEFAULT NOW()
 );
 
+ALTER TABLE mindmaps
+  ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
 -- Grant standard access to all roles so RLS can take over
 GRANT ALL ON TABLE mindmaps TO anon;
 GRANT ALL ON TABLE mindmaps TO authenticated;
@@ -57,7 +60,7 @@ ALTER TABLE mindmaps ENABLE ROW LEVEL SECURITY;
 -- DROP existing policies before recreating (idempotent re-run safety)
 DROP POLICY IF EXISTS "Allow read with any valid token"         ON mindmaps;
 DROP POLICY IF EXISTS "Allow insert for anon"                  ON mindmaps;
-DROP POLICY IF EXISTS "Allow canvas update with edit or owner token" ON mindmaps;
+DROP POLICY IF EXISTS "Allow canvas update with edit token"    ON mindmaps;
 DROP POLICY IF EXISTS "Allow title update with owner token"    ON mindmaps;
 DROP POLICY IF EXISTS "Allow delete with owner token"          ON mindmaps;
 
@@ -67,7 +70,7 @@ DROP POLICY IF EXISTS "Allow delete with owner token"          ON mindmaps;
 CREATE POLICY "Allow read with any valid token"
   ON mindmaps
   FOR SELECT
-  TO anon
+  TO anon, authenticated
   USING (true);
 -- Note: USING(true) is correct here because the token check is already
 -- enforced by the .eq() filter sent by the application. Postgres RLS USING
@@ -79,7 +82,7 @@ CREATE POLICY "Allow read with any valid token"
 CREATE POLICY "Allow insert for anon"
   ON mindmaps
   FOR INSERT
-  TO anon
+  TO anon, authenticated
   WITH CHECK (true);
 
 -- UPDATE (canvas — nodes & edges):
@@ -89,7 +92,7 @@ CREATE POLICY "Allow insert for anon"
 CREATE POLICY "Allow canvas update with edit token"
   ON mindmaps
   FOR UPDATE
-  TO anon
+  TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 -- The edit_token / owner_token enforcement is at query layer (.eq filter).
@@ -103,7 +106,7 @@ CREATE POLICY "Allow canvas update with edit token"
 CREATE POLICY "Allow title update with owner token"
   ON mindmaps
   FOR UPDATE
-  TO anon
+  TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 -- Note: Postgres does not support column-level UPDATE policies natively.
@@ -116,7 +119,7 @@ CREATE POLICY "Allow title update with owner token"
 CREATE POLICY "Allow delete with owner token"
   ON mindmaps
   FOR DELETE
-  TO anon
+  TO anon, authenticated
   USING (true);
 
 -- ---------------------------------------------------------------------------
@@ -125,6 +128,7 @@ CREATE POLICY "Allow delete with owner token"
 CREATE INDEX IF NOT EXISTS idx_mindmaps_view_token   ON mindmaps (view_token);
 CREATE INDEX IF NOT EXISTS idx_mindmaps_edit_token   ON mindmaps (edit_token);
 CREATE INDEX IF NOT EXISTS idx_mindmaps_owner_token  ON mindmaps (owner_token);
+CREATE INDEX IF NOT EXISTS idx_mindmaps_user_id      ON mindmaps (user_id);
 
 -- ---------------------------------------------------------------------------
 -- 5. updated_at auto-update trigger
