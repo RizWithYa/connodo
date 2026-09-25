@@ -8,6 +8,11 @@ const googleRouteUrl = new URL('../app/auth/google/route.ts', import.meta.url);
 const googleRouteSource = existsSync(googleRouteUrl)
   ? readFileSync(googleRouteUrl, 'utf8')
   : '';
+const appUrlUrl = new URL('../lib/appUrl.ts', import.meta.url);
+const appUrlSource = existsSync(appUrlUrl)
+  ? readFileSync(appUrlUrl, 'utf8')
+  : '';
+const authRouteSource = googleRouteSource + '\n' + appUrlSource;
 
 test('supabase exposes email login and register helpers', () => {
   assert.match(
@@ -35,22 +40,22 @@ test('supabase exposes email login and register helpers', () => {
 test('google login starts from a backend route with dynamic app URL fallback', () => {
   assert.notEqual(googleRouteSource, '', 'backend Google auth route should exist');
   assert.match(
-    googleRouteSource,
+    authRouteSource,
     /process\.env\.APP_URL/,
     'backend route should support explicit APP_URL fallback',
   );
   assert.match(
-    googleRouteSource,
+    authRouteSource,
     /process\.env\.VERCEL_URL/,
     'backend route should support automatic Vercel URL fallback',
   );
   assert.match(
-    googleRouteSource,
+    authRouteSource,
     /request\.headers\.get\('origin'\)/,
     'backend route should prefer the current request origin',
   );
   assert.match(
-    googleRouteSource,
+    authRouteSource,
     /redirectTo:\s*new URL\('\/auth\/callback', appUrl\)\.toString\(\)/,
     'backend route should send Supabase back to the same app callback',
   );

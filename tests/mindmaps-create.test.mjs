@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const pageSource = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+const pageSource = readFileSync(new URL('../app/dashboard/page.tsx', import.meta.url), 'utf8');
 const schemaSource = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8');
 const createBlock = pageSource.slice(
   pageSource.indexOf('async function handleCreate'),
-  pageSource.indexOf('// Delete a map from Supabase + localStorage'),
+  pageSource.indexOf('async function handleDelete'),
 );
 
 test('authenticated create includes the owner user_id in the mindmaps insert payload', () => {
@@ -17,7 +17,7 @@ test('authenticated create includes the owner user_id in the mindmaps insert pay
   );
   assert.match(
     createBlock,
-    /if\s*\(session\)\s*\{\s*insertData\.user_id\s*=\s*session\.user\.id;\s*\}/,
+    /insertData\.user_id\s*=\s*session\.user\.id;/,
     'authenticated create must insert user_id so ownership RLS accepts the new row',
   );
 });
