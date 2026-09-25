@@ -31,28 +31,60 @@ ALTER TABLE node_comments ENABLE ROW LEVEL SECURITY;
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Allow read comments with valid token" ON node_comments;
 DROP POLICY IF EXISTS "Allow insert comment" ON node_comments;
+DROP POLICY IF EXISTS "Allow delete comment" ON node_comments;
 DROP POLICY IF EXISTS "Allow delete own comment" ON node_comments;
 
--- SELECT: anyone with a valid mindmap token can read comments
 CREATE POLICY "Allow read comments with valid token"
   ON node_comments
   FOR SELECT
-  TO anon
-  USING (true);
+  TO anon, authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM mindmaps
+      WHERE mindmaps.id = node_comments.map_id
+      AND (
+        (mindmaps.user_id IS NOT NULL AND auth.uid() = mindmaps.user_id) OR
+        (get_request_token() <> '' AND (
+          mindmaps.view_token::text = get_request_token() OR
+          mindmaps.edit_token::text = get_request_token() OR
+          mindmaps.owner_token::text = get_request_token()
+        ))
+      )
+    )
+  );
 
--- INSERT: anon can insert (app enforces token via createTokenClient)
 CREATE POLICY "Allow insert comment"
   ON node_comments
   FOR INSERT
-  TO anon
-  WITH CHECK (true);
+  TO anon, authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM mindmaps
+      WHERE mindmaps.id = node_comments.map_id
+      AND (
+        (mindmaps.user_id IS NOT NULL AND auth.uid() = mindmaps.user_id) OR
+        (get_request_token() <> '' AND (
+          mindmaps.edit_token::text = get_request_token() OR
+          mindmaps.owner_token::text = get_request_token()
+        ))
+      )
+    )
+  );
 
--- DELETE: anon can delete (app enforces token + ownership checks)
 CREATE POLICY "Allow delete comment"
   ON node_comments
   FOR DELETE
-  TO anon
-  USING (true);
+  TO anon, authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM mindmaps
+      WHERE mindmaps.id = node_comments.map_id
+      AND (
+        (mindmaps.user_id IS NOT NULL AND auth.uid() = mindmaps.user_id) OR
+        (get_request_token() <> '' AND mindmaps.owner_token::text = get_request_token())
+      )
+    )
+  );
 
 -- ---------------------------------------------------------------------------
 -- 4. Indexes

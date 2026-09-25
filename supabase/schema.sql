@@ -57,70 +57,84 @@ ALTER TABLE mindmaps ENABLE ROW LEVEL SECURITY;
 --   even if they somehow call the REST API directly.
 -- ---------------------------------------------------------------------------
 
--- DROP existing policies before recreating (idempotent re-run safety)
+CREATE OR REPLACE FUNCTION get_request_token()
+RETURNS TEXT AS $$
+BEGIN
+  RETURN COALESCE(
+    current_setting('request.headers', true)::json->>'x-mindmap-token',
+    ''
+  );
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN '';
+END;
+$$ LANGUAGE plpgsql STABLE;
+
 DROP POLICY IF EXISTS "Allow read with any valid token"         ON mindmaps;
 DROP POLICY IF EXISTS "Allow insert for anon"                  ON mindmaps;
 DROP POLICY IF EXISTS "Allow canvas update with edit token"    ON mindmaps;
 DROP POLICY IF EXISTS "Allow title update with owner token"    ON mindmaps;
 DROP POLICY IF EXISTS "Allow delete with owner token"          ON mindmaps;
 
--- SELECT: row is visible if the queried token column matches this row's value.
--- The app always sends exactly one .eq('<token_col>', token), which Postgres
--- evaluates against the USING expression at row level.
 CREATE POLICY "Allow read with any valid token"
   ON mindmaps
   FOR SELECT
   TO anon, authenticated
-  USING (true);
--- Note: USING(true) is correct here because the token check is already
--- enforced by the .eq() filter sent by the application. Postgres RLS USING
--- clauses are AND-ed with the query's WHERE clause — so the combined
--- effective filter is:  WHERE id = $mapId AND <token_col> = $token
--- This means a row is never returned unless the token matches.
+  USING (
+    (user_id IS NOT NULL AND auth.uid() = user_id) OR
+    (get_request_token() <> '' AND (
+      view_token::text = get_request_token() OR
+      edit_token::text = get_request_token() OR
+      owner_token::text = get_request_token()
+    ))
+  );
 
--- INSERT: any anon user may create a new map (no token needed at creation time)
 CREATE POLICY "Allow insert for anon"
   ON mindmaps
   FOR INSERT
   TO anon, authenticated
   WITH CHECK (true);
 
--- UPDATE (canvas — nodes & edges):
--- Allowed only if edit_token OR owner_token matches.
--- The app sends .eq('edit_token', token) or .eq('owner_token', token).
--- Split into two policies so Postgres evaluates each independently (OR logic).
 CREATE POLICY "Allow canvas update with edit token"
   ON mindmaps
   FOR UPDATE
   TO anon, authenticated
-  USING (true)
-  WITH CHECK (true);
--- The edit_token / owner_token enforcement is at query layer (.eq filter).
--- A bare UPDATE with no WHERE token filter returns 0 rows affected.
+  USING (
+    (user_id IS NOT NULL AND auth.uid() = user_id) OR
+    (get_request_token() <> '' AND (
+      edit_token::text = get_request_token() OR
+      owner_token::text = get_request_token()
+    ))
+  )
+  WITH CHECK (
+    (user_id IS NOT NULL AND auth.uid() = user_id) OR
+    (get_request_token() <> '' AND (
+      edit_token::text = get_request_token() OR
+      owner_token::text = get_request_token()
+    ))
+  );
 
--- UPDATE (title — owner only):
--- Separate policy representing the spec requirement that title rename
--- is restricted to owner_token. In practice this is enforced at query
--- layer: MapTitle.tsx always sends .eq('owner_token', ownerToken).
--- Having this as a named policy documents the intent at the schema level.
 CREATE POLICY "Allow title update with owner token"
   ON mindmaps
   FOR UPDATE
   TO anon, authenticated
-  USING (true)
-  WITH CHECK (true);
--- Note: Postgres does not support column-level UPDATE policies natively.
--- The separation of "canvas update" vs "title update" is enforced by the
--- application (different Supabase queries with different .eq() filters).
--- Both map to the same DB-level UPDATE permission; the policy names
--- document the access intent per the spec.
+  USING (
+    (user_id IS NOT NULL AND auth.uid() = user_id) OR
+    (get_request_token() <> '' AND owner_token::text = get_request_token())
+  )
+  WITH CHECK (
+    (user_id IS NOT NULL AND auth.uid() = user_id) OR
+    (get_request_token() <> '' AND owner_token::text = get_request_token())
+  );
 
--- DELETE: allowed only if owner_token matches (app sends .eq('owner_token', token))
 CREATE POLICY "Allow delete with owner token"
   ON mindmaps
   FOR DELETE
   TO anon, authenticated
-  USING (true);
+  USING (
+    (user_id IS NOT NULL AND auth.uid() = user_id) OR
+    (get_request_token() <> '' AND owner_token::text = get_request_token())
+  );
 
 -- ---------------------------------------------------------------------------
 -- 4. Indexes — fast token lookups (O(log n) vs O(n) full scan)
