@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface MapTitleProps {
@@ -120,9 +121,7 @@ export default function MapTitle({
           title="Click to rename"
         >
           {title}
-          <span className="text-slate-300 group-hover:text-blue-400 text-xs transition-colors">
-            ✎
-          </span>
+          <Pencil className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 transition-colors shrink-0" />
         </button>
       )}
 

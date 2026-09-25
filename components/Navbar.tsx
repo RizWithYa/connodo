@@ -3,6 +3,7 @@
 import type { Session } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { Network, X } from 'lucide-react';
 import {
   onAuthStateChange,
   signInWithEmail,
@@ -102,7 +103,9 @@ export default function Navbar({ mode = 'dashboard' }: NavbarProps) {
       <nav className="fixed top-0 left-0 right-0 z-50 w-full bg-gradient-to-r from-mindmap-bg-primary via-mindmap-bg-primary to-[#1f2f4a]/90 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="mx-auto flex max-w-7xl items-center justify-between h-14 px-6">
           <Link href={mode === 'landing' ? '/' : '/dashboard'} className="flex items-center gap-2 text-white font-bold text-lg hover:opacity-90 transition-opacity">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-mindmap-accent/30 text-sm" aria-hidden>🌿</span>
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-mindmap-accent/30 text-white" aria-hidden>
+              <Network className="w-4 h-4 text-emerald-400" />
+            </span>
             Connodo
           </Link>
 
@@ -164,7 +167,7 @@ export default function Navbar({ mode = 'dashboard' }: NavbarProps) {
 
       {authMode && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 backdrop-blur-md">
-          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#1e2d4a] to-mindmap-bg-primary p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-mindmap-bg-primary bg-gradient-to-b from-[#1e2d4a] to-mindmap-bg-primary p-6 shadow-2xl">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-mindmap-accent">
@@ -182,10 +185,10 @@ export default function Navbar({ mode = 'dashboard' }: NavbarProps) {
               <button
                 type="button"
                 onClick={closeAuthModal}
-                className="rounded-lg px-2 py-1 text-mindmap-text-muted hover:bg-mindmap-bg-secondary hover:text-white transition-colors"
+                className="rounded-lg p-1.5 text-mindmap-text-muted hover:bg-mindmap-bg-secondary hover:text-white transition-colors"
                 aria-label="Close auth modal"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

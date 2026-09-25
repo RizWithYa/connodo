@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { X, MessageSquare, Trash2 } from 'lucide-react';
 import { Comment, fetchComments, addComment, deleteComment } from '@/lib/commentsService';
 
 interface CommentPanelProps {
@@ -96,7 +97,7 @@ export default function CommentPanel({
           className="w-7 h-7 flex items-center justify-center rounded-full text-mindmap-text-primary/60 hover:text-mindmap-text-primary hover:bg-mindmap-text-primary/10 transition-all duration-200"
           aria-label="Close panel"
         >
-          ✕
+          <X className="w-4 h-4" />
         </button>
       </div>
 
@@ -109,7 +110,7 @@ export default function CommentPanel({
           </div>
         ) : comments.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
-            <span className="text-2xl mb-2 opacity-40">💬</span>
+            <MessageSquare className="w-8 h-8 mb-2 opacity-30 text-mindmap-text-primary" />
             <p className="text-sm font-medium text-mindmap-text-primary/50">No comments yet</p>
             <p className="text-xs text-mindmap-text-primary/30 mt-1">Be the first to share your thoughts!</p>
           </div>
@@ -143,20 +144,7 @@ export default function CommentPanel({
                     className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-mindmap-text-primary/40 hover:text-red-400 transition-all duration-200"
                     title="Delete comment"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
+                    <Trash2 className="w-3 h-3" />
                   </button>
                 )}
               </div>
