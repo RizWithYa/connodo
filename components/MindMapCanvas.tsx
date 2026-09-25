@@ -41,6 +41,18 @@ import MapTitle from '@/components/MapTitle';
 import { exportAsPng, exportAsPdf, exportAsJson } from '@/lib/exportUtils';
 import type { AccessRole } from '@/lib/tokenUtils';
 import CommentPanel from '@/components/CommentPanel';
+import {
+  Trash2,
+  Copy,
+  X,
+  Loader2,
+  Check,
+  AlertCircle,
+  AlertTriangle,
+  Crown,
+  Pencil,
+  Eye,
+} from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types — MindMap-specific node data
@@ -311,11 +323,11 @@ function MindMapNodeEditable(props: NodeProps<MindMapNode>) {
           className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 flex items-center gap-1 px-2 py-1.5 bg-white rounded-lg shadow-md border border-slate-200 z-10"
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <button type="button" onClick={handleDeleteThis} className="p-1 rounded hover:bg-red-50 hover:text-red-600 transition-colors text-slate-500" title="Delete node">
-            <span className="text-sm">🗑</span>
+          <button type="button" onClick={handleDeleteThis} className="p-1.5 rounded hover:bg-red-50 hover:text-red-600 transition-colors text-slate-500" title="Delete node">
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
-          <button type="button" onClick={handleDuplicate} className="p-1 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors text-slate-500" title="Duplicate node (Ctrl+D)">
-            <span className="text-sm">📋</span>
+          <button type="button" onClick={handleDuplicate} className="p-1.5 rounded hover:bg-blue-50 hover:text-blue-600 transition-colors text-slate-500" title="Duplicate node (Ctrl+D)">
+            <Copy className="w-3.5 h-3.5" />
           </button>
           <div className="w-px h-4 bg-slate-200 mx-0.5" />
           {[
@@ -645,6 +657,16 @@ interface CanvasInnerProps {
   function CanvasInner({ mapId, tokenColumn, token, accessRole, guestMode = false }: CanvasInnerProps) {
   const router = useRouter();
 
+  const [role, setRole] = useState<AccessRole>(accessRole);
+  const [activeToken, setActiveToken] = useState<string | null>(token);
+  const [activeColumn, setActiveColumn] = useState<'owner_token' | 'edit_token' | 'view_token' | null>(tokenColumn);
+
+  useEffect(() => {
+    setRole(accessRole);
+    setActiveToken(token);
+    setActiveColumn(tokenColumn);
+  }, [accessRole, token, tokenColumn]);
+
   const [nodes, setNodes] = useState<MindMapNode[]>([]);
   const [edges, setEdges] = useState<MindMapEdge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -721,7 +743,6 @@ interface CanvasInnerProps {
 
   const { screenToFlowPosition, fitView } = useReactFlow<MindMapNode, MindMapEdge>();
 
-  const role = accessRole;
   const canEdit = guestMode || role === 'owner' || role === 'editor';
   const readOnly = !canEdit;
 
@@ -840,32 +861,32 @@ interface CanvasInnerProps {
           return;
         }
 
-        // 1. Resolve the token (URL props vs localStorage)
-        let activeColumn = tokenColumn;
-        let activeToken = token;
+        let resolvedColumn = tokenColumn;
+        let resolvedToken = token;
+        let resolvedRole = accessRole;
 
-        if (!activeToken && typeof window !== 'undefined') {
+        if (!resolvedToken && typeof window !== 'undefined') {
           const storedToken = localStorage.getItem(`mindmap_owned_${mapId}`);
           if (storedToken) {
-            activeColumn = 'owner_token';
-            activeToken = storedToken;
+            resolvedColumn = 'owner_token';
+            resolvedToken = storedToken;
+            resolvedRole = 'owner';
           }
         }
 
-        // 2. Build the query to explicitly filter by the resolved token
-        const client = activeToken ? createTokenClient(activeToken) : supabase;
+        setActiveColumn(resolvedColumn);
+        setActiveToken(resolvedToken);
+        setRole(resolvedRole);
+
+        const client = resolvedToken ? createTokenClient(resolvedToken) : supabase;
 
         let query = client
           .from('mindmaps')
           .select('*')
           .eq('id', mapId);
 
-        if (activeColumn && activeToken) {
-          query = query.eq(activeColumn, activeToken);
-        } else {
-          // If absolutely no token is provided, we should ideally fail or let RLS reject.
-          // For safety, we can explicitly add an impossible condition if anon reads are strictly token-gated.
-          // But we'll let RLS / DB handle the empty state.
+        if (resolvedColumn && resolvedToken) {
+          query = query.eq(resolvedColumn, resolvedToken);
         }
 
         const { data, error: fetchError } = await query.single();
@@ -880,7 +901,6 @@ interface CanvasInnerProps {
           type: 'mindmap' as const,
         }));
         const rawEdges = (data.edges ?? []) as MindMapEdge[];
-        // Migrate edges from single-handle era: add default handle IDs
         const migratedEdges = rawEdges.map((e) => ({
           ...e,
           sourceHandle: e.sourceHandle ?? 'source-right',
@@ -892,8 +912,7 @@ interface CanvasInnerProps {
 
         if (data.title) setTitle(data.title as string);
 
-        // Only owner receives these columns
-        if (role === 'owner') {
+        if (resolvedRole === 'owner') {
           if (data.view_token) setViewToken(data.view_token as string);
           if (data.edit_token) setEditToken(data.edit_token as string);
           if (data.owner_token) setOwnerToken(data.owner_token as string);
@@ -914,55 +933,24 @@ interface CanvasInnerProps {
   // Auto-fit on initial load — once only, with smooth animation
   // -------------------------------------------------------------------------
   const hasFittedView = useRef(false);
-  const lastThumbCapture = useRef(0);
-
-  const captureThumbnail = useCallback(() => {
-    const now = Date.now();
-    // Throttle: at most once every 8 seconds
-    if (now - lastThumbCapture.current < 8000) return;
-    lastThumbCapture.current = now;
-
-    const container = flowWrapperRef.current?.querySelector('.react-flow') as HTMLElement || flowWrapperRef.current;
-    if (!container || typeof window === 'undefined') return;
-
-    import('html-to-image').then(({ toPng }) => {
-      toPng(container, {
-        canvasWidth: 400,
-        canvasHeight: 225,
-        pixelRatio: 1,
-        backgroundColor: '#ffffff',
-        filter: (node: Element) => {
-          const cls = node.className || '';
-          if (typeof cls === 'string' && (cls.includes('react-flow__controls') || cls.includes('react-flow__minimap'))) return false;
-          return true;
-        },
-      }).then((dataUrl) => {
-        localStorage.setItem(`mindmap_thumb_${mapId}`, dataUrl);
-      }).catch(err => console.error('Thumb capture failed', err));
-    });
-  }, [mapId]);
+  const lastSavedPayloadRef = useRef<string>('');
 
   useEffect(() => {
     if (!loading && !error && nodes.length > 0 && !hasFittedView.current) {
       hasFittedView.current = true;
       requestAnimationFrame(() => {
         fitView({ padding: 0.2, duration: 400 });
-        setTimeout(captureThumbnail, 900);
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  }, [loading, error, nodes.length, fitView]);
 
-  // -------------------------------------------------------------------------
-  // Debounced save — 1500ms after last change (per spec)
-  // -------------------------------------------------------------------------
   const persistSave = useCallback(
     async (nodesToSave: MindMapNode[], edgesToSave: MindMapEdge[]) => {
       if (guestMode) return;
 
       setSaveStatus('saving');
       try {
-        const client = token ? createTokenClient(token) : supabase;
+        const client = activeToken ? createTokenClient(activeToken) : supabase;
         let query = client
           .from('mindmaps')
           .update({
@@ -972,8 +960,8 @@ interface CanvasInnerProps {
           })
           .eq('id', mapId);
 
-        if (tokenColumn && token) {
-          query = query.eq(tokenColumn, token);
+        if (activeColumn && activeToken) {
+          query = query.eq(activeColumn, activeToken);
         }
 
         const { error: saveError } = await query;
@@ -984,62 +972,40 @@ interface CanvasInnerProps {
         } else {
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus('idle'), 2000);
-          captureThumbnail();
         }
       } catch (e) {
         console.error('Save exception:', e);
         setSaveStatus('error');
       }
     },
-    [mapId, tokenColumn, token, guestMode, captureThumbnail]
+    [mapId, activeColumn, activeToken, guestMode]
   );
 
   const debouncedSave = useDebounce(persistSave, 1500);
 
-  // -------------------------------------------------------------------------
-  // React Flow change handlers
-  // -------------------------------------------------------------------------
   const onNodesChange: OnNodesChange<MindMapNode> = useCallback(
     (changes) => {
-      setNodes((nds) => {
-        const updated = applyNodeChanges(changes, nds);
-        if (canEdit) debouncedSave(updated, edges);
-        return updated;
-      });
+      setNodes((nds) => applyNodeChanges(changes, nds));
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canEdit, debouncedSave, edges]
+    []
   );
 
   const onEdgesChange: OnEdgesChange<MindMapEdge> = useCallback(
     (changes) => {
-      setEdges((eds) => {
-        const updated = applyEdgeChanges(changes, eds);
-        if (canEdit) debouncedSave(nodes, updated);
-        return updated;
-      });
+      setEdges((eds) => applyEdgeChanges(changes, eds));
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canEdit, debouncedSave, nodes]
+    []
   );
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
+      if (connection.source === connection.target) return;
       pushSnapshot();
-      setEdges((eds) => {
-        const updated = addEdge({ ...connection, type: 'smoothstep' }, eds);
-        debouncedSave(nodes, updated);
-        return updated;
-      });
+      setEdges((eds) => addEdge({ ...connection, type: 'smoothstep' }, eds));
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [debouncedSave, nodes]
+    [pushSnapshot]
   );
 
-  // -------------------------------------------------------------------------
-  // Watch for label/color/node changes from the custom node (setNodes called
-  // directly). We fire a debounced save whenever `nodes` changes after load.
-  // -------------------------------------------------------------------------
   const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) {
@@ -1047,10 +1013,23 @@ interface CanvasInnerProps {
       return;
     }
     if (canEdit && !loading) {
-      debouncedSave(nodes, edges);
+      const payload = JSON.stringify({
+        nodes: nodes.map(({ id, type, position, data }) => ({ id, type, position, data })),
+        edges: edges.map(({ id, source, target, sourceHandle, targetHandle, type, data, label }) => ({
+          id, source, target, sourceHandle, targetHandle, type, data, label,
+        })),
+      });
+
+      if (payload !== lastSavedPayloadRef.current) {
+        lastSavedPayloadRef.current = payload;
+        debouncedSave(nodes, edges);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges]);
+  }, [nodes, edges, canEdit, loading, debouncedSave]);
+
+  const isValidConnection = useCallback((connection: Connection | Edge) => {
+    return connection.source !== connection.target;
+  }, []);
 
   // -------------------------------------------------------------------------
   // Add node — placed at current viewport center
@@ -1069,20 +1048,21 @@ interface CanvasInnerProps {
       data: { label: 'New Node' },
     };
 
-    setNodes((nds) => {
-      const updated = [...nds, newNode];
-      debouncedSave(updated, edges);
-      return updated;
-    });
+    setNodes((nds) => [...nds, newNode]);
   }
 
-  // -------------------------------------------------------------------------
-  // Double-click empty canvas — create node at click position
-  // -------------------------------------------------------------------------
   function handleCanvasDoubleClick(e: React.MouseEvent) {
     if (!canEdit) return;
-    const target = e.target as HTMLElement;
-    if (!target.classList.contains('react-flow__pane')) return;
+    const target = e.target as (HTMLElement | SVGElement | null);
+    if (!target) return;
+    if (
+      target.closest?.('.react-flow__node') ||
+      target.closest?.('.react-flow__edge') ||
+      target.closest?.('.react-flow__controls') ||
+      target.closest?.('.react-flow__minimap')
+    ) {
+      return;
+    }
 
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     pushSnapshot();
@@ -1094,11 +1074,7 @@ interface CanvasInnerProps {
       data: { label: 'New Node', _autoEdit: true },
     };
 
-    setNodes((nds) => {
-      const updated = [...nds, newNode];
-      debouncedSave(updated, edges);
-      return updated;
-    });
+    setNodes((nds) => [...nds, newNode]);
   }
 
   // -------------------------------------------------------------------------
@@ -1142,60 +1118,38 @@ interface CanvasInnerProps {
     [pushSnapshot]
   );
 
-  // -------------------------------------------------------------------------
-  // Delete selected nodes/edges (toolbar button + Delete key)
-  // -------------------------------------------------------------------------
   function handleDeleteSelected() {
     pushSnapshot();
-    let remainingNodes: MindMapNode[] = [];
-    let remainingEdges: MindMapEdge[] = [];
-
-    setNodes((nds) => {
-      const selectedIds = new Set(nds.filter((n) => n.selected).map((n) => n.id));
-      remainingNodes = nds.filter((n) => !n.selected);
-
-      setEdges((eds) => {
-        remainingEdges = eds.filter(
-          (e) => !e.selected && !selectedIds.has(e.source) && !selectedIds.has(e.target)
-        );
-        return remainingEdges;
-      });
-
-      return remainingNodes;
-    });
-
-    // Save after React state flushes
-    setTimeout(() => {
-      if (canEdit) debouncedSave(remainingNodes, remainingEdges);
-    }, 0);
+    const selectedNodeIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
+    setNodes((nds) => nds.filter((n) => !n.selected));
+    setEdges((eds) => eds.filter((e) => !e.selected && !selectedNodeIds.has(e.source) && !selectedNodeIds.has(e.target)));
   }
 
   // -------------------------------------------------------------------------
   // Delete map (owner only) — called from SharePanel
   // -------------------------------------------------------------------------
   async function handleDeleteMap() {
-    if (role !== 'owner' || !token) return;
+    if (role !== 'owner' || !activeToken) return;
 
     try {
-      const client = createTokenClient(token);
+      const client = createTokenClient(activeToken);
       const { error: deleteError } = await client
         .from('mindmaps')
         .delete()
         .eq('id', mapId)
-        .eq('owner_token', token);
+        .eq('owner_token', activeToken);
 
       if (deleteError) {
         console.error('Delete failed:', deleteError);
         return;
       }
 
-      // Clean up localStorage entry
       if (typeof window !== 'undefined') {
         localStorage.removeItem(`mindmap_owned_${mapId}`);
         localStorage.removeItem(`mindmap_thumb_${mapId}`);
       }
 
-      router.push('/');
+      router.push('/dashboard');
     } catch (e) {
       console.error('Delete exception:', e);
     }
@@ -1395,11 +1349,12 @@ interface CanvasInnerProps {
       return;
     }
 
-    // --- Enter: create sibling node (same X, Y + 100) ---
     if (e.key === 'Enter') {
       e.preventDefault();
       pushSnapshot();
       const siblingId = `node-${Date.now()}`;
+      const parentEdge = edges.find((ed) => ed.target === selectedNode.id);
+
       const siblingNode: MindMapNode = {
         id: siblingId,
         type: 'mindmap',
@@ -1413,17 +1368,32 @@ interface CanvasInnerProps {
         ...nds.map((n) => ({ ...n, selected: false })),
         { ...siblingNode, selected: true },
       ]);
-      setEdges((eds) => [
-        ...eds,
-        {
-          id: `edge-${selectedNode.id}-${siblingId}`,
-          source: selectedNode.id,
-          sourceHandle: 'source-bottom',
-          target: siblingId,
-          targetHandle: 'target-top',
-          type: 'smoothstep',
-        },
-      ]);
+
+      if (parentEdge) {
+        setEdges((eds) => [
+          ...eds,
+          {
+            id: `edge-${parentEdge.source}-${siblingId}`,
+            source: parentEdge.source,
+            sourceHandle: parentEdge.sourceHandle || 'source-right',
+            target: siblingId,
+            targetHandle: parentEdge.targetHandle || 'target-left',
+            type: 'smoothstep',
+          },
+        ]);
+      } else {
+        setEdges((eds) => [
+          ...eds,
+          {
+            id: `edge-${selectedNode.id}-${siblingId}`,
+            source: selectedNode.id,
+            sourceHandle: 'source-bottom',
+            target: siblingId,
+            targetHandle: 'target-top',
+            type: 'smoothstep',
+          },
+        ]);
+      }
       return;
     }
   }
@@ -1434,7 +1404,6 @@ interface CanvasInnerProps {
   if (loading) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-white">
-        <p className="text-slate-400 text-sm animate-pulse">Loading map…</p>
         <p className="text-slate-400 text-sm animate-pulse">Loading map…</p>
       </div>
     );
@@ -1474,9 +1443,10 @@ interface CanvasInnerProps {
           <button 
             type="button"
             onClick={closeSearch}
-            className="text-slate-400 hover:text-slate-600 font-bold text-xs px-1"
+            className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+            aria-label="Close search"
           >
-            ✕
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
@@ -1485,7 +1455,7 @@ interface CanvasInnerProps {
           mapId={mapId}
           initialTitle={title}
           canRename={role === 'owner' && !guestMode}
-          ownerToken={role === 'owner' ? token : null}
+          ownerToken={role === 'owner' ? activeToken : null}
         />
       )}
 
@@ -1539,9 +1509,10 @@ interface CanvasInnerProps {
       {isPresentationMode && (
         <button
           onClick={() => setIsPresentationMode(false)}
-          className="fixed top-4 right-4 z-50 bg-mindmap-accent text-white rounded-lg px-3 py-2 text-sm shadow-md hover:bg-mindmap-accent/90 transition-colors"
+          className="fixed top-4 right-4 z-50 bg-mindmap-accent text-white rounded-lg px-3 py-2 text-sm shadow-md hover:bg-mindmap-accent/90 transition-colors inline-flex items-center gap-1.5"
         >
-          Exit Presentation ✕
+          <span>Exit Presentation</span>
+          <X className="w-4 h-4" />
         </button>
       )}
 
@@ -1564,6 +1535,7 @@ interface CanvasInnerProps {
           panOnDrag
           defaultEdgeOptions={{ type: 'smoothstep' }}
           deleteKeyCode={null}
+          isValidConnection={isValidConnection}
         >
           <Background color="#f1f5f9" gap={20} />
           <Controls />
@@ -1576,24 +1548,60 @@ interface CanvasInnerProps {
 
         {canEdit && saveStatus !== 'idle' && (
           <div
+            data-export-ignore="true"
             className={[
-              'absolute bottom-4 right-4 z-10 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm',
+              'absolute bottom-4 right-4 z-10 px-3 py-1.5 rounded-full text-xs font-medium shadow-sm inline-flex items-center gap-1.5',
               saveStatus === 'saving' ? 'bg-slate-100 text-slate-500' : '',
               saveStatus === 'saved' ? 'bg-green-50 text-green-600 border border-green-200' : '',
               saveStatus === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : '',
             ].join(' ')}
           >
-            {saveStatus === 'saving' && '⏳ Saving…'}
-            {saveStatus === 'saved' && '✓ Saved'}
-            {saveStatus === 'error' && '✗ Save failed'}
+            {saveStatus === 'saving' && (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                <span>Saving…</span>
+              </>
+            )}
+            {saveStatus === 'saved' && (
+              <>
+                <Check className="w-3.5 h-3.5 text-green-600" />
+                <span>Saved</span>
+              </>
+            )}
+            {saveStatus === 'error' && (
+              <>
+                <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                <span>Save failed</span>
+              </>
+            )}
           </div>
         )}
 
-        <div className="absolute top-3 left-3 z-10 px-2 py-1 rounded-md bg-white/80 border border-slate-200 text-xs text-slate-500 backdrop-blur-sm pointer-events-none">
-          {guestMode && '⚠️ Guest Mode'}
-          {!guestMode && role === 'owner' && '👑 Owner'}
-          {!guestMode && role === 'editor' && '✏️ Editor'}
-          {!guestMode && role === 'viewer' && '👁 View only'}
+        <div data-export-ignore="true" className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-md bg-white/90 border border-slate-200 text-xs font-medium text-slate-600 backdrop-blur-sm pointer-events-none inline-flex items-center gap-1.5 shadow-sm">
+          {guestMode && (
+            <>
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              <span>Guest Mode</span>
+            </>
+          )}
+          {!guestMode && role === 'owner' && (
+            <>
+              <Crown className="w-3.5 h-3.5 text-amber-500" />
+              <span>Owner</span>
+            </>
+          )}
+          {!guestMode && role === 'editor' && (
+            <>
+              <Pencil className="w-3.5 h-3.5 text-blue-500" />
+              <span>Editor</span>
+            </>
+          )}
+          {!guestMode && role === 'viewer' && (
+            <>
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span>View only</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -1603,18 +1611,18 @@ interface CanvasInnerProps {
           mapId={mapId}
           viewToken={viewToken}
           editToken={editToken}
-          ownerToken={ownerToken}
+          ownerToken={ownerToken || activeToken || ''}
           onClose={() => setShowSharePanel(false)}
           onDelete={handleDeleteMap}
         />
       )}
 
       {/* Comment panel */}
-      {showComments && selectedNodeId && token && (
+      {showComments && selectedNodeId && activeToken && (
         <CommentPanel
           nodeId={selectedNodeId}
           mapId={mapId}
-          token={token}
+          token={activeToken}
           role={role}
           onClose={() => { setShowComments(false); setSelectedNodeId(null); }}
           authorName={authorName}
