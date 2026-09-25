@@ -3,6 +3,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Network, Plus, Eye, Copy, Trash2, Loader2, ArrowRight } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import { createTokenClient, onAuthStateChange, supabase } from '@/lib/supabase';
 import { TEMPLATES, type TemplateData } from '@/lib/templates';
@@ -186,9 +187,9 @@ function MindMapCardPreview({
   if (nodes.length === 0) {
     return (
       <div className="w-full h-[132px] bg-mindmap-bg-secondary/60 border-b border-mindmap-border/30 flex items-center justify-center shrink-0">
-        <div className="text-center">
-          <div className="text-3xl opacity-30">🌿</div>
-          <span className="mt-1 block text-mindmap-accent text-xs font-medium opacity-60">No Preview</span>
+        <div className="flex flex-col items-center justify-center">
+          <Network className="w-8 h-8 opacity-30 text-mindmap-accent" />
+          <span className="mt-1.5 block text-mindmap-accent text-xs font-medium opacity-60">No Preview</span>
         </div>
       </div>
     );
@@ -532,9 +533,19 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => handleCreate()}
                     disabled={creating}
-                    className="rounded-xl bg-mindmap-accent px-6 py-3 text-sm font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5"
+                    className="rounded-xl bg-mindmap-accent px-6 py-3 text-sm font-semibold text-white hover:bg-mindmap-accent/80 transition-all shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transform hover:-translate-y-0.5 inline-flex items-center gap-2"
                   >
-                    {creating ? 'Creating…' : '+ Create Saved Map'}
+                    {creating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Creating…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        <span>Create Saved Map</span>
+                      </>
+                    )}
                   </button>
                   {!isLoggedIn && (
                     <button
@@ -589,8 +600,12 @@ export default function DashboardPage() {
                 disabled={creating}
                 className="group rounded-2xl border border-mindmap-border/30 bg-mindmap-bg-primary p-4 text-left shadow-lg transition-all hover:-translate-y-0.5 hover:border-mindmap-accent disabled:opacity-60"
               >
-                <div className="mb-4 h-16 rounded-xl border border-mindmap-border/20 bg-mindmap-bg-secondary/70 flex items-center justify-center text-2xl">
-                  {template.template ? '🌿' : '＋'}
+                <div className="mb-4 h-16 rounded-xl border border-mindmap-border/20 bg-mindmap-bg-secondary/70 flex items-center justify-center">
+                  {template.template ? (
+                    <Network className="w-6 h-6 text-mindmap-accent group-hover:scale-110 transition-transform" />
+                  ) : (
+                    <Plus className="w-6 h-6 text-mindmap-accent group-hover:scale-110 transition-transform" />
+                  )}
                 </div>
                 <h3 className="text-sm font-semibold text-mindmap-text-primary group-hover:text-white transition-colors">{template.label}</h3>
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-mindmap-text-muted">{template.description}</p>
@@ -640,7 +655,9 @@ export default function DashboardPage() {
             </div>
           ) : maps.length === 0 ? (
             <div className="rounded-3xl border border-mindmap-border/30 bg-mindmap-bg-primary p-10 text-center shadow-lg">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-mindmap-accent/15 text-3xl">🌿</div>
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-mindmap-accent/15 text-mindmap-accent">
+                <Network className="w-8 h-8" />
+              </div>
               <h3 className="text-xl font-semibold text-mindmap-text-primary">No saved mindmaps yet</h3>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-mindmap-text-muted">
                 Your ideas are waiting for a place to branch. Create a saved map for auto-save and sharing, or try Guest Mode for a temporary draft.
@@ -694,35 +711,47 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => router.push(`/map/${map.id}?owner=${map.ownerToken}`)}
-                        className="rounded-lg bg-mindmap-accent px-3 py-2 text-xs font-medium text-white hover:bg-mindmap-accent/80 transition-colors shadow-sm"
+                        className="rounded-lg bg-mindmap-accent px-3 py-2 text-xs font-medium text-white hover:bg-mindmap-accent/80 transition-colors shadow-sm inline-flex items-center gap-1.5 justify-center"
                       >
-                        Open &rarr;
+                        <span>Open</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => window.open(`/map/${map.id}?view=${map.viewToken}`, '_blank')}
-                        className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-2 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm"
+                        className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-2 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm flex items-center justify-center"
                         title="Preview as viewer"
+                        aria-label="Preview as viewer"
                       >
-                        👁
+                        <Eye className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDuplicate(map.id, map.ownerToken)}
                         disabled={duplicatingId === map.id}
-                        className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-2 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm disabled:opacity-50"
+                        className="rounded-lg bg-mindmap-bg-secondary border border-mindmap-border/50 px-3 py-2 text-xs font-medium text-mindmap-text-primary hover:bg-mindmap-accent/30 transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center"
                         title="Duplicate map"
+                        aria-label="Duplicate map"
                       >
-                        {duplicatingId === map.id ? '…' : '📋'}
+                        {duplicatingId === map.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(map.id, map.ownerToken)}
                         disabled={deletingId === map.id}
-                        className="rounded-lg border border-red-500/30 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                        className="rounded-lg border border-red-500/30 px-3 py-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50 flex items-center justify-center"
                         title="Delete map"
+                        aria-label="Delete map"
                       >
-                        {deletingId === map.id ? '…' : '🗑'}
+                        {deletingId === map.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
                       </button>
                     </div>
                   </div>

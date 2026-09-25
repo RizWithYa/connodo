@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { X, AlertTriangle, Trash2, Copy, Check } from 'lucide-react';
 import { buildShareLinks } from '@/lib/tokenUtils';
 
 interface SharePanelProps {
@@ -77,7 +78,7 @@ export default function SharePanel({
             className="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
             aria-label="Close"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -114,8 +115,8 @@ export default function SharePanel({
               onCopy={handleCopy}
               variant="warning"
             />
-            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
-              <span className="text-amber-500 text-sm">⚠️</span>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
               <p className="text-xs text-amber-700 font-medium">
                 Keep this private — it grants full owner access.
               </p>
@@ -130,7 +131,8 @@ export default function SharePanel({
               onClick={() => setShowDeleteConfirm(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
             >
-              🗑 Delete Map
+              <Trash2 className="w-4 h-4 text-red-600" />
+              Delete Map
             </button>
           ) : (
             <div className="flex items-center gap-2 w-full">
@@ -209,7 +211,17 @@ function LinkRow({
               : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50',
           ].join(' ')}
         >
-          {isCopied ? '✓ Copied!' : '📋 Copy'}
+          {isCopied ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-green-600" />
+              <span>Copied!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5" />
+              <span>Copy</span>
+            </>
+          )}
         </button>
       </div>
       {/* URL preview */}
