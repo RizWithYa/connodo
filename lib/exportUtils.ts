@@ -13,6 +13,23 @@ import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import type { FlowNode, FlowEdge } from './supabase';
 
+function shouldIncludeInExport(node: HTMLElement): boolean {
+  const cls = node.className || '';
+  if (typeof cls === 'string') {
+    if (
+      cls.includes('react-flow__controls') ||
+      cls.includes('react-flow__minimap') ||
+      cls.includes('react-flow__attribution')
+    ) {
+      return false;
+    }
+  }
+  if (node.getAttribute?.('data-export-ignore') === 'true') {
+    return false;
+  }
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // PNG Export
 // ---------------------------------------------------------------------------
@@ -29,7 +46,8 @@ export async function exportAsPng(
 ): Promise<void> {
   const dataUrl = await toPng(canvasElement, {
     backgroundColor: '#ffffff',
-    pixelRatio: 2, // High-DPI
+    pixelRatio: 2,
+    filter: shouldIncludeInExport,
   });
 
   triggerDownload(dataUrl, `${filename}.png`);
@@ -53,6 +71,7 @@ export async function exportAsPdf(
   const dataUrl = await toPng(canvasElement, {
     backgroundColor: '#ffffff',
     pixelRatio: 2,
+    filter: shouldIncludeInExport,
   });
 
   const img = new Image();
